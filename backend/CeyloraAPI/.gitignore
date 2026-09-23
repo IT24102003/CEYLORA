@@ -1,0 +1,6 @@
+# Ignore development appsettings with secrets
+appsettings.Development.json
+
+# Build outputs
+bin/
+obj/
