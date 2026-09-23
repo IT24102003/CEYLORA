@@ -1,0 +1,6 @@
+@CeyloraAPI_HostAddress = http://localhost:5220
+
+GET {{CeyloraAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
