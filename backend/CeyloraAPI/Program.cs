@@ -75,7 +75,8 @@ builder.Services.AddAuthorization();
 
 // Register application services
 builder.Services.AddScoped<IJwtService, JwtService>();
-//builder.Services.AddScoped<IPricingService, PricingService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
 
 var app = builder.Build();
 
