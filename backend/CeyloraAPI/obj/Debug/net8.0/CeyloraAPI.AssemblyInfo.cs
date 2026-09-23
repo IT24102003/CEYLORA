@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CeyloraAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e67cbb8e363225d06bf9a148d039a2a54e0e3997")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+77164c6941179fd9553849d0385ae5cebc75adfb")]
 [assembly: System.Reflection.AssemblyProductAttribute("CeyloraAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CeyloraAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
