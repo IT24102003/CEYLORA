@@ -151,6 +151,6 @@ namespace CeyloraAPI.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(image);
-        }
+        }  
     }
 }
