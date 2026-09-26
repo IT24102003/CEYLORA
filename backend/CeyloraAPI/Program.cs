@@ -86,6 +86,8 @@ builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IHotelService, HotelService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 
+builder.Services.AddScoped<IAssignmentService, AssignmentService>(); 
+
 var app = builder.Build();
 
 app.UseAuthentication();

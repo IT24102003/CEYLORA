@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
     "net8.0": {
       "BCrypt.Net-Next/4.2.0": {
@@ -2923,28 +2923,37 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\MSI\\.nuget\\packages\\": {}
+    "C:\\Users\\AI COMPUTERS\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\MSI\\Desktop\\CEYLORA\\CEYLORA\\backend\\CeyloraAPI\\CeyloraAPI.csproj",
+      "projectUniqueName": "C:\\Users\\AI COMPUTERS\\Documents\\GitHub\\CEYLORA\\backend\\CeyloraAPI\\CeyloraAPI.csproj",
       "projectName": "CeyloraAPI",
-      "projectPath": "C:\\Users\\MSI\\Desktop\\CEYLORA\\CEYLORA\\backend\\CeyloraAPI\\CeyloraAPI.csproj",
-      "packagesPath": "C:\\Users\\MSI\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\MSI\\Desktop\\CEYLORA\\CEYLORA\\backend\\CeyloraAPI\\obj\\",
+      "projectPath": "C:\\Users\\AI COMPUTERS\\Documents\\GitHub\\CEYLORA\\backend\\CeyloraAPI\\CeyloraAPI.csproj",
+      "packagesPath": "C:\\Users\\AI COMPUTERS\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\AI COMPUTERS\\Documents\\GitHub\\CEYLORA\\backend\\CeyloraAPI\\obj\\",
       "projectStyle": "PackageReference",
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
       "configFilePaths": [
-        "C:\\Users\\MSI\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\AI COMPUTERS\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
       ],
       "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "projectReferences": {}
         }
@@ -2958,10 +2967,12 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "10.0.400"
     },
     "frameworks": {
       "net8.0": {
+        "framework": "net8.0",
         "targetAlias": "net8.0",
         "dependencies": {
           "BCrypt.Net-Next": {
@@ -3010,7 +3021,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json"
       }
     }
   },
@@ -3019,11 +3030,17 @@
       "code": "NU1603",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "CeyloraAPI depends on Npgsql.EntityFrameworkCore.PostgreSQL (>= 8.0.5) but Npgsql.EntityFrameworkCore.PostgreSQL 8.0.5 was not found. An approximate best match of Npgsql.EntityFrameworkCore.PostgreSQL 8.0.8 was resolved.",
+      "message": "CeyloraAPI depends on Npgsql.EntityFrameworkCore.PostgreSQL (>= 8.0.5) but Npgsql.EntityFrameworkCore.PostgreSQL 8.0.5 was not found. Npgsql.EntityFrameworkCore.PostgreSQL 8.0.8 was resolved instead.",
       "libraryId": "Npgsql.EntityFrameworkCore.PostgreSQL",
       "targetGraphs": [
         "net8.0"
       ]
+    },
+    {
+      "code": "NU1900",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Error occurred while getting package vulnerability data: No such host is known. (api.nuget.org:443)"
     }
   ]
 }
