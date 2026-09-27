@@ -35,7 +35,7 @@ bookingId).ToListAsync();
             var booking = await _context.Bookings.FindAsync(dto.BookingId);
             if (booking == null) return NotFound(new { message = "Booking not found." });
 
-            // 🔥 Business-rule validation: amount must match the booking total 
+            // Business-rule validation: amount must match the booking total 
             if (dto.Amount != booking.TotalPrice)
                 return BadRequest(new
                 {
