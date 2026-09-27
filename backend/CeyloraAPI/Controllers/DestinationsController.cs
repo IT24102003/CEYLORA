@@ -130,3 +130,4 @@ namespace CeyloraAPI.Controllers
             return NoContent();
         }
     }
+}
