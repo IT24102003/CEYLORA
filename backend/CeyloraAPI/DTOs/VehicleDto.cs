@@ -6,6 +6,7 @@ namespace CeyloraAPI.DTOs
         public string Type { get; set; } = string.Empty;
         public int Capacity { get; set; }
         public string Region { get; set; } = string.Empty;
+        public decimal PricePerKm { get; set; }
         public bool IsAvailable { get; set; } = true;
     }
 }

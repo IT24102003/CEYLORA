@@ -1,6 +1,7 @@
 using CeyloraAPI.Data;
 using CeyloraAPI.DTOs;
 using CeyloraAPI.Models;
+using CeyloraAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,7 @@ namespace CeyloraAPI.Controllers
             _context = context;
         }
 
-        // GET: api/vehicles?region=Kandy&type=Van&available=true&page=1&pageSize=10 
+        // GET: api/vehicles?region=Kandy&type=Van&available=true&page=1&pageSize=10
         [HttpGet]
         public async Task<ActionResult<PagedResultDto<Vehicle>>> GetAll(
             [FromQuery] string? region,
@@ -53,17 +54,16 @@ namespace CeyloraAPI.Controllers
             });
         }
 
-        // GET: api/vehicles/5 
+        // GET: api/vehicles/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Vehicle>> GetById(int id)
         {
-            var vehicle = await _context.Vehicles.Include(v => v.Images).FirstOrDefaultAsync(v =>
-v.Id == id);
+            var vehicle = await _context.Vehicles.Include(v => v.Images).FirstOrDefaultAsync(v => v.Id == id);
             if (vehicle == null) return NotFound(new { message = "Vehicle not found." });
             return Ok(vehicle);
         }
 
-        // POST: api/vehicles (Admin only) 
+        // POST: api/vehicles (Admin only)
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Vehicle>> Create(VehicleDto dto)
@@ -77,7 +77,8 @@ v.Id == id);
                 Type = dto.Type,
                 Capacity = dto.Capacity,
                 Region = dto.Region,
-                IsAvailable = dto.IsAvailable
+                IsAvailable = dto.IsAvailable,
+                PricePerKm = dto.PricePerKm
             };
 
             _context.Vehicles.Add(vehicle);
@@ -86,7 +87,7 @@ v.Id == id);
             return CreatedAtAction(nameof(GetById), new { id = vehicle.Id }, vehicle);
         }
 
-        // PUT: api/vehicles/5 (Admin only) 
+        // PUT: api/vehicles/5 (Admin only)
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, VehicleDto dto)
@@ -98,12 +99,13 @@ v.Id == id);
             vehicle.Capacity = dto.Capacity;
             vehicle.Region = dto.Region;
             vehicle.IsAvailable = dto.IsAvailable;
+            vehicle.PricePerKm = dto.PricePerKm;
 
             await _context.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE: api/vehicles/5 (Admin only) 
+        // DELETE: api/vehicles/5 (Admin only)
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
@@ -116,7 +118,7 @@ v.Id == id);
             return NoContent();
         }
 
-        // POST: api/vehicles/5/images (Admin only) — add image URL to gallery 
+        // POST: api/vehicles/5/images (Admin only) — add image URL to gallery
         [HttpPost("{id}/images")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<VehicleImage>> AddImage(int id, [FromBody] string imageUrl)
@@ -136,6 +138,31 @@ v.Id == id);
             await _context.SaveChangesAsync();
 
             return Ok(image);
+        }
+
+        // 🔥 BUSINESS-SPECIFIC OPERATION: Distance-based vehicle pricing
+        // POST: api/vehicles/distance-quote
+        [HttpPost("distance-quote")]
+        public async Task<IActionResult> GetDistanceQuote(
+            DistanceQuoteRequestDto dto, [FromServices] IDistanceService distanceService)
+        {
+            var vehicle = await _context.Vehicles.FindAsync(dto.VehicleId);
+            if (vehicle == null) return NotFound(new { message = "Vehicle not found." });
+
+            var distanceKm = await distanceService.GetDistanceKmAsync(
+                dto.StartLat, dto.StartLon, dto.EndLat, dto.EndLon);
+
+            if (distanceKm == null)
+                return Ok(new { available = false, message = "Distance calculation unavailable." });
+
+            var totalCharge = vehicle.PricePerKm * (decimal)distanceKm.Value;
+
+            return Ok(new DistanceQuoteResponseDto
+            {
+                DistanceKm = distanceKm.Value,
+                PricePerKm = vehicle.PricePerKm,
+                TotalVehicleCharge = Math.Round(totalCharge, 2)
+            });
         }
     }
 }
