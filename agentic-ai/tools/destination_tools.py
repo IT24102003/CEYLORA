@@ -1,9 +1,10 @@
+from typing import Optional
 from langchain_core.tools import tool
 from tools.backend_client import get_destinations, get_hotels
 
 
 @tool
-async def search_destinations(region: str = None, category: str = None, search: str = None) -> str:
+async def search_destinations(region: Optional[str] = None, category: Optional[str] = None, search: Optional[str] = None) -> str:
     """
     Search for tourist destinations in the CEYLORA database.
     Use this to find destinations matching a region (e.g. 'Kandy', 'Central'),
