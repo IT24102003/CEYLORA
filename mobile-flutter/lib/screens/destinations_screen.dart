@@ -14,6 +14,8 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   bool _isLoading = true;
   String? _error;
 
+  final Map<int, Map<String, dynamic>?> _weatherCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +35,12 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadWeatherFor(int destId, double? lat, double? lon) async {
+    if (lat == null || lon == null || _weatherCache.containsKey(destId)) return;
+    final weather = await _apiService.getWeather(lat, lon);
+    if (mounted) setState(() => _weatherCache[destId] = weather);
   }
 
   @override
@@ -72,6 +80,10 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       itemCount: _destinations.length,
       itemBuilder: (context, index) {
         final dest = _destinations[index];
+        final destId = dest["id"];
+        final lat = (dest["latitude"] as num?)?.toDouble();
+        final lon = (dest["longitude"] as num?)?.toDouble();
+
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: ListTile(
@@ -81,7 +93,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
             ),
             title: Text(dest["name"] ?? ""),
             subtitle: Text("${dest["region"] ?? ""} • ${dest["category"] ?? "General"}"),
-            isThreeLine: false,
+            trailing: _buildWeatherTrailing(destId, lat, lon),
             onTap: () {
               showModalBottomSheet(
                 context: context,
@@ -98,6 +110,13 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                       const SizedBox(height: 8),
                       Text("Region: ${dest["region"] ?? ""}"),
                       Text("Category: ${dest["category"] ?? "General"}"),
+                      if (_weatherCache[destId]?["available"] == true) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          "Weather: ${_weatherCache[destId]!["temperature"].toStringAsFixed(0)}°C, "
+                          "${_weatherCache[destId]!["description"]}",
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -106,6 +125,37 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildWeatherTrailing(int destId, double? lat, double? lon) {
+    if (lat == null || lon == null) return const SizedBox.shrink();
+
+    if (!_weatherCache.containsKey(destId)) {
+      // Trigger the fetch once, show a small loading indicator meanwhile
+      _loadWeatherFor(destId, lat, lon);
+      return const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    final w = _weatherCache[destId];
+    if (w == null || w["available"] != true) return const SizedBox.shrink();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "${(w["temperature"] as num).toStringAsFixed(0)}°C",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text(
+          w["isRainy"] == true ? "🌧️" : "☀️",
+          style: const TextStyle(fontSize: 16),
+        ),
+      ],
     );
   }
 }

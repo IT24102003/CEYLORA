@@ -102,6 +102,7 @@ builder.Services.AddScoped<IHotelService, HotelService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IAssignmentService, AssignmentService>();
 builder.Services.AddHttpClient<IAgenticAIClient, AgenticAIClient>();
+builder.Services.AddHttpClient<IWeatherService, WeatherService>();
 
 var app = builder.Build();
 

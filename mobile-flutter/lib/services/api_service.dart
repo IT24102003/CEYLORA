@@ -158,6 +158,18 @@ Future<Map<String, dynamic>> createPayment({required int bookingId, required dou
   }
 }
 
+  Future<Map<String, dynamic>?> getWeather(double lat, double lon) async {
+  final response = await http.get(
+    Uri.parse("$baseUrl/weather/forecast?lat=$lat&lon=$lon"),
+    headers: _headers,
+  );
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  }
+  return null;
+}
+
   Future<List<dynamic>> getPackages() async {
     final response = await http.get(
       Uri.parse("$baseUrl/packages?pageSize=50"),

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "../services/api";
+import api, { getWeather } from "../services/api";
 
 export default function DestinationsPage() {
   const [destinations, setDestinations] = useState([]);
@@ -48,6 +48,18 @@ export default function DestinationsPage() {
       alert(err.response?.data?.message || "Failed to save destination.");
     }
   };
+
+  const [weatherData, setWeatherData] = useState({});
+
+  const fetchWeather = async (dest) => {
+  if (!dest.latitude || !dest.longitude) return;
+  try {
+    const res = await getWeather(dest.latitude, dest.longitude);
+    setWeatherData((prev) => ({ ...prev, [dest.id]: res.data }));
+  } catch (err) {
+    console.error("Weather fetch failed", err);
+  }
+};
 
   const handleEdit = (dest) => {
     setForm({
@@ -107,6 +119,7 @@ export default function DestinationsPage() {
               <th style={{ padding: 8 }}>Name</th>
               <th style={{ padding: 8 }}>Region</th>
               <th style={{ padding: 8 }}>Category</th>
+              <th style={{ padding: 8 }}>Weather</th>
               <th style={{ padding: 8 }}>Actions</th>
             </tr>
           </thead>
@@ -116,6 +129,21 @@ export default function DestinationsPage() {
                 <td style={{ padding: 8 }}>{d.name}</td>
                 <td style={{ padding: 8 }}>{d.region}</td>
                 <td style={{ padding: 8 }}>{d.category}</td>
+                <td style={{ padding: 8 }}>
+                    {weatherData[d.id] ? (
+                        weatherData[d.id].available ? (
+                            <span>
+                                {weatherData[d.id].temperature}°C {weatherData[d.id].isRainy ? "🌧️" : "☀️"}
+                            </span>
+                        ) : (
+                            <span style={{ color: "#999" }}>N/A</span>
+                        )
+                    ) : (
+                        <button onClick={() => fetchWeather(d)} style={{ fontSize: 12, padding: "2px 8px" }}>
+                            Check
+                        </button>
+                    )}
+                </td>
                 <td style={{ padding: 8 }}>
                   <button onClick={() => handleEdit(d)} style={{ marginRight: 8 }}>Edit</button>
                   <button onClick={() => handleDelete(d.id)} style={{ color: "red" }}>Delete</button>
