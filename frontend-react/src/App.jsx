@@ -4,6 +4,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgentMonitorPage from "./pages/AgentMonitorPage";
+import DestinationsPage from "./pages/DestinationsPage";
+import PackagesPage from "./pages/PackagesPage";
+import HotelsPage from "./pages/HotelsPage";
 
 function App() {
   return (
@@ -26,6 +29,30 @@ function App() {
                 <AgentMonitorPage />
               </ProtectedRoute>
             }
+          />
+          <Route
+            path="/destinations"
+            element={
+              <ProtectedRoute>
+                <DestinationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route 
+            path="/packages" 
+            element={
+                <ProtectedRoute>
+                    <PackagesPage />
+                </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/hotels" 
+            element={
+                <ProtectedRoute>
+                    <HotelsPage />
+                </ProtectedRoute>
+            } 
           />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
