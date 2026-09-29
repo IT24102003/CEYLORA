@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -13,17 +14,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  int _role = 0; // 0 = Tourist, 1 = Guide
+  int _role = 0;
   String? _error;
+
+  String _country = "";
+  String _mobileNumber = "";
 
   Future<void> _handleRegister() async {
     setState(() => _error = null);
+
+    if (_mobileNumber.isEmpty || _country.isEmpty) {
+      setState(() => _error = "Please enter your mobile number.");
+      return;
+    }
+
     try {
       await context.read<AuthProvider>().register(
             _nameController.text.trim(),
             _emailController.text.trim(),
             _passwordController.text,
             _role,
+            _country,
+            _mobileNumber,
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -37,9 +49,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text("Register")),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: _nameController,
@@ -57,6 +70,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 12),
+
+            // Country select + auto dial code applied to phone field
+            IntlPhoneField(
+              decoration: const InputDecoration(
+                labelText: "Mobile Number",
+                border: OutlineInputBorder(),
+              ),
+              initialCountryCode: 'LK', // Sri Lanka default
+              onChanged: (phone) {
+                _mobileNumber = phone.completeNumber; // includes dial code, e.g. +94771234567
+              },
+              onCountryChanged: (country) {
+                _country = country.name; // e.g. "Sri Lanka"
+              },
+            ),
+            const SizedBox(height: 12),
+
             DropdownButtonFormField<int>(
               value: _role,
               isExpanded: true,
@@ -70,14 +100,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 20),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : _handleRegister,
-                child: isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text("Register"),
-              ),
+            ElevatedButton(
+              onPressed: isLoading ? null : _handleRegister,
+              child: isLoading
+                  ? const CircularProgressIndicator()
+                  : const Text("Register"),
             ),
           ],
         ),

@@ -15,6 +15,12 @@ namespace CeyloraAPI.DTOs
         public string Password { get; set; } = string.Empty;
 
         [Required]
-        public UserRole Role { get; set; } // Tourist, Guide, Admin
+        public UserRole Role { get; set; }
+
+        [Required]
+        public string Country { get; set; } = string.Empty;
+
+        [Required]
+        public string MobileNumber { get; set; } = string.Empty;
     }
 }

@@ -34,6 +34,8 @@ namespace CeyloraAPI.Controllers
                 Email = dto.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Role = dto.Role,
+                Country = dto.Country,
+                MobileNumber = dto.MobileNumber,
                 CreatedAt = DateTime.UtcNow
             };
 

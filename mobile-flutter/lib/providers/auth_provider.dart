@@ -52,12 +52,14 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> register(String name, String email, String password, int role) async {
+  Future<void> register(String name, String email, String password, int role,
+      String country, String mobileNumber) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final result = await _apiService.register(name, email, password, role);
+      final result = await _apiService.register(
+          name, email, password, role, country, mobileNumber);
       _token = result["token"];
       _name = result["name"];
       _role = result["role"];
@@ -71,6 +73,14 @@ class AuthProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Called after a profile update so the displayed name stays in sync.
+  Future<void> updateLocalName(String newName) async {
+    _name = newName;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("name", newName);
+    notifyListeners();
   }
 
   Future<void> logout() async {
