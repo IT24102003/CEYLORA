@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'destinations_screen.dart';
+import 'trip_planner_screen.dart';
+import 'packages_screen.dart';
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -33,6 +36,28 @@ class HomeScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DestinationsScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.calendar_today),
+              label: const Text("Plan Trip"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TripPlannerScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.shopping_cart),
+              label: const Text("View Packages"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PackagesScreen()),
                 );
               },
             ),

@@ -51,7 +51,7 @@ namespace CeyloraAPI.Controllers
 
                 var workflow = new AgentWorkflow
                 {
-                    BookingId = dto.BookingId ?? 0,
+                    BookingId = dto.BookingId, // nullable now — no booking required to explore a plan
                     Objective = dto.Objective,
                     PlanJson = rawResult,
                     Status = statusFromPython == "completed" ? WorkflowStatus.Completed : WorkflowStatus.Failed,

@@ -4,6 +4,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiService {
+
+    static final ApiService _instance = ApiService._internal();
+    factory ApiService() => _instance;
+    ApiService._internal();
+
   static String get baseUrl {
     if (kIsWeb) {
       return "http://localhost:5220/api";
@@ -72,6 +77,86 @@ class ApiService {
       throw Exception("Failed to load destinations");
     }
   }
+
+  Future<Map<String, dynamic>> startAgentWorkflow(String objective, {int? bookingId}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/agent-workflows/start"),
+    headers: _headers,
+    body: jsonEncode({
+      "objective": objective,
+      "bookingId": bookingId,
+    }),
+  );
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Failed to start workflow: ${response.body}");
+  }
+}
+
+  Future<Map<String, dynamic>> createBooking({required int packageId, required int groupSize}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/bookings"),
+    headers: _headers,
+    body: jsonEncode({
+      "packageId": packageId,
+      "groupSize": groupSize,
+      "travelDate": DateTime.now().add(const Duration(days: 14)).toIso8601String(),
+    }),
+  );
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Failed to create booking: ${response.body}");
+  }
+}
+
+Future<Map<String, dynamic>> createPayment({required int bookingId, required double amount}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/payments"),
+    headers: _headers,
+    body: jsonEncode({
+      "bookingId": bookingId,
+      "amount": amount,
+    }),
+  );
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Payment failed: ${response.body}");
+  }
+}
+
+  Future<void> toggleGuideAvailability(int guideId, bool isAvailable) async {
+  final response = await http.put(
+    Uri.parse("$baseUrl/guides/$guideId/availability"),
+    headers: _headers,
+    body: jsonEncode(isAvailable),
+  );
+
+  if (response.statusCode != 204) {
+    throw Exception("Failed to update availability");
+  }
+}
+
+ Future<void> submitReview({required int bookingId, required int rating, String? comment}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/reviews"),
+    headers: _headers,
+    body: jsonEncode({
+      "bookingId": bookingId,
+      "rating": rating,
+      "comment": comment,
+    }),
+  );
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    throw Exception("Failed to submit review");
+  }
+}
 
   Future<List<dynamic>> getPackages() async {
     final response = await http.get(
