@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'destinations_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -25,7 +26,16 @@ class HomeScreen extends StatelessWidget {
           children: [
             Text("Role: ${auth.role}"),
             const SizedBox(height: 20),
-            const Text("Home screen — Tourist/Guide screens coming next"),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.explore),
+              label: const Text("Browse Destinations"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DestinationsScreen()),
+                );
+              },
+            ),
           ],
         ),
       ),
