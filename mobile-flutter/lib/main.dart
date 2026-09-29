@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/guide_home_screen.dart';
 
 void main() {
   runApp(const CeyloraApp());
@@ -33,6 +34,13 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    return auth.isLoggedIn ? const HomeScreen() : const LoginScreen();
+
+    if (!auth.isLoggedIn) return const LoginScreen();
+
+    // Role-based routing: same app, different screens per role
+    if (auth.role == "Guide") {
+      return const GuideHomeScreen();
+    }
+    return const HomeScreen(); // Tourist (default)
   }
 }

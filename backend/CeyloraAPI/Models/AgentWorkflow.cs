@@ -5,8 +5,8 @@ namespace CeyloraAPI.Models
     public class AgentWorkflow
     {
         public int Id { get; set; }
-        public int BookingId { get; set; }
-        public Booking Booking { get; set; } = null!;
+        public int? BookingId { get; set; }
+        public Booking? Booking { get; set; } = null!;
         public string Objective { get; set; } = string.Empty;
         public string? PlanJson { get; set; }
         public WorkflowStatus Status { get; set; } = WorkflowStatus.Running;
