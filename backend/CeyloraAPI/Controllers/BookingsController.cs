@@ -15,14 +15,15 @@ namespace CeyloraAPI.Controllers
     public class BookingsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IEmailService _emailService;
 
-        public BookingsController(AppDbContext context)
+        public BookingsController(AppDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         // GET: api/bookings?status=Pending&page=1&pageSize=10
-        // Admin sees all; Tourist sees only their own
         [HttpGet]
         public async Task<ActionResult<PagedResultDto<Booking>>> GetAll(
             [FromQuery] string? status,
@@ -82,7 +83,7 @@ namespace CeyloraAPI.Controllers
                 TouristId = userId,
                 PackageId = dto.PackageId,
                 Status = BookingStatus.Pending,
-                TotalPrice = package.BasePrice * dto.GroupSize, // simplified; use PricingService for full logic
+                TotalPrice = package.BasePrice * dto.GroupSize,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -108,6 +109,16 @@ namespace CeyloraAPI.Controllers
             booking.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            if (newStatus == BookingStatus.Confirmed)
+            {
+                var tourist = await _context.Users.FindAsync(booking.TouristId);
+                if (tourist != null)
+                {
+                    _ = _emailService.SendBookingApprovedEmailAsync(tourist.Email, tourist.Name, booking.Id);
+                }
+            }
+
             return NoContent();
         }
 

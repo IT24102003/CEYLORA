@@ -13,11 +13,13 @@ namespace CeyloraAPI.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IJwtService _jwtService;
+        private readonly IEmailService _emailService;
 
-        public AuthController(AppDbContext context, IJwtService jwtService)
+        public AuthController(AppDbContext context, IJwtService jwtService, IEmailService emailService)
         {
             _context = context;
             _jwtService = jwtService;
+            _emailService = emailService;
         }
 
         [HttpPost("register")]
@@ -37,6 +39,8 @@ namespace CeyloraAPI.Controllers
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
+
+            _ = _emailService.SendWelcomeEmailAsync(user.Email, user.Name);
 
             var token = _jwtService.GenerateToken(user);
 

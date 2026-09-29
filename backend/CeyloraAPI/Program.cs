@@ -104,6 +104,7 @@ builder.Services.AddScoped<IAssignmentService, AssignmentService>();
 builder.Services.AddHttpClient<IAgenticAIClient, AgenticAIClient>();
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
 builder.Services.AddHttpClient<IDistanceService, DistanceService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 var app = builder.Build();
 
