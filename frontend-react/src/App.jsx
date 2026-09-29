@@ -7,6 +7,9 @@ import AgentMonitorPage from "./pages/AgentMonitorPage";
 import DestinationsPage from "./pages/DestinationsPage";
 import PackagesPage from "./pages/PackagesPage";
 import HotelsPage from "./pages/HotelsPage";
+import BookingsPage from "./pages/BookingsPage";
+import GuidesPage from "./pages/GuidesPage";
+import VehiclesPage from "./pages/VehiclesPage";
 
 function App() {
   return (
@@ -51,6 +54,30 @@ function App() {
             element={
                 <ProtectedRoute>
                     <HotelsPage />
+                </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/bookings" 
+            element={
+              <ProtectedRoute>
+                    <BookingsPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/guides" 
+            element={
+                <ProtectedRoute>
+                    <GuidesPage />
+                </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/vehicles" 
+            element={
+                <ProtectedRoute>
+                    <VehiclesPage />
                 </ProtectedRoute>
             } 
           />
