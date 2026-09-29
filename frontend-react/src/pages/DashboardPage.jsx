@@ -1,4 +1,5 @@
 import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -7,6 +8,7 @@ export default function DashboardPage() {
     <div style={{ padding: 20, fontFamily: "sans-serif" }}>
       <h2>Welcome, {user?.name}</h2>
       <p>Role: {user?.role}</p>
+      <Link to="/agent-monitor" style={{ marginLeft: 10 }}>Agent Workflow Monitor</Link>
       <button onClick={logout}>Logout</button>
     </div>
   );
