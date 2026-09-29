@@ -18,11 +18,15 @@ builder.Services.AddControllers()
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy("AllowClientApps", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.SetIsOriginAllowed(origin =>
+        {
+            var uri = new Uri(origin);
+            return uri.Host == "localhost"; // allow any localhost port (dev only)
+        })
+             .AllowAnyHeader()
+             .AllowAnyMethod();
     });
 });
 
@@ -101,7 +105,7 @@ builder.Services.AddHttpClient<IAgenticAIClient, AgenticAIClient>();
 
 var app = builder.Build();
 
-app.UseCors("AllowReactApp");
+app.UseCors("AllowClientApps");
 app.UseAuthentication();
 app.UseAuthorization();
 
