@@ -10,6 +10,8 @@ import HotelsPage from "./pages/HotelsPage";
 import BookingsPage from "./pages/BookingsPage";
 import GuidesPage from "./pages/GuidesPage";
 import VehiclesPage from "./pages/VehiclesPage";
+import ReviewsPage from "./pages/ReviewsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 function App() {
   return (
@@ -78,6 +80,22 @@ function App() {
             element={
                 <ProtectedRoute>
                     <VehiclesPage />
+                </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/reviews" 
+            element={
+                <ProtectedRoute>
+                    <ReviewsPage />
+                </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/analytics" 
+            element={
+                <ProtectedRoute>
+                    <AnalyticsPage />
                 </ProtectedRoute>
             } 
           />
