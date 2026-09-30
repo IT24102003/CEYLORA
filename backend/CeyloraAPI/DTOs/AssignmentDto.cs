@@ -20,6 +20,15 @@ namespace CeyloraAPI.DTOs
 
     public class UpdateAssignmentStatusDto
     {
-        public string Status { get; set; } = string.Empty; // Proposed, Confirmed, Cancelled 
+        public string Status { get; set; } = string.Empty; // Proposed, Confirmed, Cancelled
+    }
+
+    // Admin picks a specific guide + vehicle for a booking (matching the tourist's group
+    // size) and confirms the trip in one action from the Bookings tab.
+    public class AssignConfirmDto
+    {
+        public int BookingId { get; set; }
+        public int GuideId { get; set; }
+        public int VehicleId { get; set; }
     }
 }

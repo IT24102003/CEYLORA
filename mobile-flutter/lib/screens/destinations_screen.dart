@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/favorite_button.dart';
 
 class DestinationsScreen extends StatefulWidget {
   const DestinationsScreen({super.key});
@@ -10,16 +12,34 @@ class DestinationsScreen extends StatefulWidget {
 
 class _DestinationsScreenState extends State<DestinationsScreen> {
   final ApiService _apiService = ApiService();
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+
   List<dynamic> _destinations = [];
   bool _isLoading = true;
   String? _error;
+  String? _categoryFilter;
 
   final Map<int, Map<String, dynamic>?> _weatherCache = {};
+
+  static const _categories = ["Nature", "Cultural", "Adventure", "Beach", "Wildlife", "Historical"];
 
   @override
   void initState() {
     super.initState();
     _loadDestinations();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), _loadDestinations);
   }
 
   Future<void> _loadDestinations() async {
@@ -28,7 +48,10 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       _error = null;
     });
     try {
-      final results = await _apiService.getDestinations();
+      final results = await _apiService.getDestinations(
+        search: _searchController.text.trim(),
+        category: _categoryFilter,
+      );
       setState(() => _destinations = results);
     } catch (e) {
       setState(() => _error = "Failed to load destinations.");
@@ -47,10 +70,70 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Destinations")),
-      body: RefreshIndicator(
-        onRefresh: _loadDestinations,
-        child: _buildBody(),
+      body: Column(
+        children: [
+          _buildSearchAndFilter(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadDestinations,
+              child: _buildBody(),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildSearchAndFilter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: "Search destinations...",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _loadDestinations();
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 36,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _filterChip("All", _categoryFilter == null, () {
+                  setState(() => _categoryFilter = null);
+                  _loadDestinations();
+                }),
+                ..._categories.map((c) => _filterChip(c, _categoryFilter == c, () {
+                      setState(() => _categoryFilter = _categoryFilter == c ? null : c);
+                      _loadDestinations();
+                    })),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
     );
   }
 
@@ -93,7 +176,14 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
             ),
             title: Text(dest["name"] ?? ""),
             subtitle: Text("${dest["region"] ?? ""} • ${dest["category"] ?? "General"}"),
-            trailing: _buildWeatherTrailing(destId, lat, lon),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildWeatherTrailing(destId, lat, lon),
+                const SizedBox(width: 6),
+                FavoriteButton(itemType: "Destination", itemId: destId),
+              ],
+            ),
             onTap: () {
               showModalBottomSheet(
                 context: context,
@@ -149,11 +239,11 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       children: [
         Text(
           "${(w["temperature"] as num).toStringAsFixed(0)}°C",
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         ),
         Text(
           w["isRainy"] == true ? "🌧️" : "☀️",
-          style: const TextStyle(fontSize: 16),
+          style: const TextStyle(fontSize: 14),
         ),
       ],
     );

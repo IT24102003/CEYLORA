@@ -6,6 +6,12 @@ load_dotenv()
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:5220/api")
 
+# The ASP.NET Core backend talks to a cloud (Supabase) Postgres database, so a
+# "cold" connection or a slow network hop can easily take longer than httpx's
+# default 5-second timeout. That showed up as httpx.ReadTimeout even though the
+# backend WAS reachable — it just hadn't finished the DB round-trip yet.
+BACKEND_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+
 
 async def get_destinations(region: str = None, category: str = None, search: str = None):
     """Calls the ASP.NET Core Destinations API to fetch matching destinations."""
@@ -18,7 +24,7 @@ async def get_destinations(region: str = None, category: str = None, search: str
         params["search"] = search
     params["pageSize"] = 10
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
         response = await client.get(f"{BACKEND_API_URL}/destinations", params=params)
         response.raise_for_status()
         return response.json()
@@ -33,7 +39,7 @@ async def get_hotels(region: str = None, min_stars: int = None):
         params["minStars"] = min_stars
     params["pageSize"] = 10
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
         response = await client.get(f"{BACKEND_API_URL}/hotels", params=params)
         response.raise_for_status()
         return response.json()
@@ -45,7 +51,7 @@ async def get_hotels(region: str = None, min_stars: int = None):
 async def find_available_guide(region: str, language: str = None):
     """Calls the ASP.NET Core Guides API to find an available guide."""
     params = {"region": region, "available": "true", "pageSize": 5}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
         response = await client.get(f"{BACKEND_API_URL}/guides", params=params)
         response.raise_for_status()
         items = response.json().get("items", [])
@@ -64,7 +70,7 @@ async def find_available_guide(region: str, language: str = None):
 async def find_available_vehicle(region: str, min_capacity: int = 1):
     """Calls the ASP.NET Core Vehicles API to find an available vehicle."""
     params = {"region": region, "available": "true", "pageSize": 5}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
         response = await client.get(f"{BACKEND_API_URL}/vehicles", params=params)
         response.raise_for_status()
         items = response.json().get("items", [])
@@ -76,7 +82,7 @@ async def find_available_vehicle(region: str, min_capacity: int = 1):
 async def check_package_price(package_id: int, group_size: int, travel_date: str):
     """Calls the ASP.NET Core Packages API quote endpoint for dynamic pricing."""
     body = {"groupSize": group_size, "travelDate": travel_date}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
         response = await client.post(
             f"{BACKEND_API_URL}/packages/{package_id}/quote", json=body
         )

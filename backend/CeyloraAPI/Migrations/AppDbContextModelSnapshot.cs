@@ -87,6 +87,9 @@ namespace CeyloraAPI.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TouristId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -142,8 +145,26 @@ namespace CeyloraAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int>("PackageId")
+                    b.Property<int?>("CustomTripDurationDays")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CustomTripName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CustomTripObjective")
+                        .HasColumnType("text");
+
+                    b.Property<int>("GroupSize")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("PackageId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("PlannedStartDate")
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -153,6 +174,9 @@ namespace CeyloraAPI.Migrations
 
                     b.Property<int>("TouristId")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("TripStartedAt")
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -164,6 +188,43 @@ namespace CeyloraAPI.Migrations
                     b.HasIndex("TouristId");
 
                     b.ToTable("Bookings");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.ChatMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BookingId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SenderRole")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("SenderId");
+
+                    b.ToTable("ChatMessages");
                 });
 
             modelBuilder.Entity("CeyloraAPI.Models.Destination", b =>
@@ -208,6 +269,34 @@ namespace CeyloraAPI.Migrations
                     b.ToTable("Destinations");
                 });
 
+            modelBuilder.Entity("CeyloraAPI.Models.Favorite", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ItemType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Favorites");
+                });
+
             modelBuilder.Entity("CeyloraAPI.Models.Guide", b =>
                 {
                     b.Property<int>("Id")
@@ -219,7 +308,13 @@ namespace CeyloraAPI.Migrations
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Languages")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NicNumber")
                         .HasColumnType("text");
 
                     b.Property<double>("Rating")
@@ -229,8 +324,14 @@ namespace CeyloraAPI.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TourismIdPhotoUrl")
+                        .HasColumnType("text");
+
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("VerificationNote")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -265,6 +366,9 @@ namespace CeyloraAPI.Migrations
 
                     b.Property<decimal>("PricePerNight")
                         .HasColumnType("numeric");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Region")
                         .IsRequired()
@@ -402,6 +506,42 @@ namespace CeyloraAPI.Migrations
                     b.ToTable("ItineraryDays");
                 });
 
+            modelBuilder.Entity("CeyloraAPI.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("CeyloraAPI.Models.Package", b =>
                 {
                     b.Property<int>("Id")
@@ -425,11 +565,24 @@ namespace CeyloraAPI.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("MaxPeople")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("SuggestedGuideId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SuggestedVehicleId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("SuggestedGuideId");
+
+                    b.HasIndex("SuggestedVehicleId");
 
                     b.ToTable("Packages");
                 });
@@ -458,6 +611,29 @@ namespace CeyloraAPI.Migrations
                     b.HasIndex("PackageId");
 
                     b.ToTable("PackageDestinations");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.PackageHotel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("HotelId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PackageId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HotelId");
+
+                    b.HasIndex("PackageId");
+
+                    b.ToTable("PackageHotels");
                 });
 
             modelBuilder.Entity("CeyloraAPI.Models.Payment", b =>
@@ -508,10 +684,16 @@ namespace CeyloraAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<int?>("HotelRating")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Rating")
                         .HasColumnType("integer");
 
                     b.Property<int>("TouristId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("VehicleRating")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -580,11 +762,20 @@ namespace CeyloraAPI.Migrations
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("ManufacturerYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("text");
+
                     b.Property<int>("OperatorId")
                         .HasColumnType("integer");
 
                     b.Property<decimal>("PricePerKm")
                         .HasColumnType("numeric");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Region")
                         .IsRequired()
@@ -627,6 +818,40 @@ namespace CeyloraAPI.Migrations
                     b.HasIndex("VehicleId");
 
                     b.ToTable("VehicleImages");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.VehicleOwner", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DrivingLicensePhotoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NicNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VerificationNote")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("VehicleOwners");
                 });
 
             modelBuilder.Entity("CeyloraAPI.Models.AgentExecutionLog", b =>
@@ -676,9 +901,7 @@ namespace CeyloraAPI.Migrations
                 {
                     b.HasOne("CeyloraAPI.Models.Package", "Package")
                         .WithMany()
-                        .HasForeignKey("PackageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("PackageId");
 
                     b.HasOne("CeyloraAPI.Models.User", "Tourist")
                         .WithMany()
@@ -689,6 +912,36 @@ namespace CeyloraAPI.Migrations
                     b.Navigation("Package");
 
                     b.Navigation("Tourist");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.ChatMessage", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.Booking", "Booking")
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CeyloraAPI.Models.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("Sender");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.Favorite", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("CeyloraAPI.Models.Guide", b =>
@@ -754,6 +1007,32 @@ namespace CeyloraAPI.Migrations
                     b.Navigation("Itinerary");
                 });
 
+            modelBuilder.Entity("CeyloraAPI.Models.Notification", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.Package", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.Guide", "SuggestedGuide")
+                        .WithMany()
+                        .HasForeignKey("SuggestedGuideId");
+
+                    b.HasOne("CeyloraAPI.Models.Vehicle", "SuggestedVehicle")
+                        .WithMany()
+                        .HasForeignKey("SuggestedVehicleId");
+
+                    b.Navigation("SuggestedGuide");
+
+                    b.Navigation("SuggestedVehicle");
+                });
+
             modelBuilder.Entity("CeyloraAPI.Models.PackageDestination", b =>
                 {
                     b.HasOne("CeyloraAPI.Models.Destination", "Destination")
@@ -769,6 +1048,25 @@ namespace CeyloraAPI.Migrations
                         .IsRequired();
 
                     b.Navigation("Destination");
+
+                    b.Navigation("Package");
+                });
+
+            modelBuilder.Entity("CeyloraAPI.Models.PackageHotel", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.Hotel", "Hotel")
+                        .WithMany()
+                        .HasForeignKey("HotelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CeyloraAPI.Models.Package", "Package")
+                        .WithMany("PackageHotels")
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Hotel");
 
                     b.Navigation("Package");
                 });
@@ -825,6 +1123,17 @@ namespace CeyloraAPI.Migrations
                     b.Navigation("Vehicle");
                 });
 
+            modelBuilder.Entity("CeyloraAPI.Models.VehicleOwner", b =>
+                {
+                    b.HasOne("CeyloraAPI.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("CeyloraAPI.Models.AgentWorkflow", b =>
                 {
                     b.Navigation("Logs");
@@ -843,6 +1152,8 @@ namespace CeyloraAPI.Migrations
             modelBuilder.Entity("CeyloraAPI.Models.Package", b =>
                 {
                     b.Navigation("PackageDestinations");
+
+                    b.Navigation("PackageHotels");
                 });
 
             modelBuilder.Entity("CeyloraAPI.Models.Vehicle", b =>

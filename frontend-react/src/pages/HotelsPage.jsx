@@ -8,13 +8,20 @@ export default function HotelsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     name: "", region: "", address: "", starRating: "", pricePerNight: "",
-    roomsAvailable: "", description: "",
+    roomsAvailable: "", description: "", imageUrl: "",
   });
+  const [search, setSearch] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const [minStars, setMinStars] = useState("");
 
   const fetchHotels = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/hotels", { params: { pageSize: 50 } });
+      const params = { pageSize: 50 };
+      if (search) params.search = search;
+      if (regionFilter) params.region = regionFilter;
+      if (minStars) params.minStars = minStars;
+      const res = await api.get("/hotels", { params });
       setHotels(res.data.items);
     } catch (err) {
       console.error(err);
@@ -28,7 +35,7 @@ export default function HotelsPage() {
   }, []);
 
   const resetForm = () => {
-    setForm({ name: "", region: "", address: "", starRating: "", pricePerNight: "", roomsAvailable: "", description: "" });
+    setForm({ name: "", region: "", address: "", starRating: "", pricePerNight: "", roomsAvailable: "", description: "", imageUrl: "" });
     setEditingId(null);
     setShowForm(false);
   };
@@ -59,6 +66,7 @@ export default function HotelsPage() {
       name: hotel.name, region: hotel.region, address: hotel.address || "",
       starRating: hotel.starRating, pricePerNight: hotel.pricePerNight,
       roomsAvailable: hotel.roomsAvailable, description: hotel.description || "",
+      imageUrl: hotel.imageUrl || "",
     });
     setEditingId(hotel.id);
     setShowForm(true);
@@ -78,20 +86,61 @@ export default function HotelsPage() {
     <div style={{ padding: 20, fontFamily: "sans-serif" }}>
       <h2>Hotels</h2>
 
-      <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none", marginBottom: 16 }}>
-        + Add Hotel
-      </button>
+      <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          placeholder="Search hotels..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ padding: 8, flex: 1, minWidth: 160 }}
+        />
+        <input
+          placeholder="Filter by region..."
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value)}
+          style={{ padding: 8, width: 160 }}
+        />
+        <select value={minStars} onChange={(e) => setMinStars(e.target.value)} style={{ padding: 8 }}>
+          <option value="">Any star rating</option>
+          <option value="1">1★ and up</option>
+          <option value="2">2★ and up</option>
+          <option value="3">3★ and up</option>
+          <option value="4">4★ and up</option>
+          <option value="5">5★ only</option>
+        </select>
+        <button onClick={fetchHotels} style={{ padding: "8px 16px" }}>Search</button>
+        <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none" }}>
+          + Add Hotel
+        </button>
+      </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 20, borderRadius: 8 }}>
-          <h3>{editingId ? "Edit" : "Add"} Hotel</h3>
-          <input placeholder="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input placeholder="Region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input type="number" min="1" max="5" placeholder="Star Rating (1-5)" required value={form.starRating} onChange={(e) => setForm({ ...form, starRating: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input type="number" placeholder="Price per Night (LKR)" required value={form.pricePerNight} onChange={(e) => setForm({ ...form, pricePerNight: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input type="number" placeholder="Rooms Available" required value={form.roomsAvailable} onChange={(e) => setForm({ ...form, roomsAvailable: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
+        <form onSubmit={handleSubmit} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 20, borderRadius: 8, maxWidth: 640 }}>
+          <h3 style={{ marginTop: 0 }}>{editingId ? "Edit" : "Add"} Hotel</h3>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <input placeholder="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ padding: 8 }} />
+            <input placeholder="Region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} style={{ padding: 8 }} />
+          </div>
+
+          <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <input type="number" min="1" max="5" placeholder="Star Rating (1-5)" required value={form.starRating} onChange={(e) => setForm({ ...form, starRating: e.target.value })} style={{ padding: 8 }} />
+            <input type="number" placeholder="Price/Night (LKR)" required value={form.pricePerNight} onChange={(e) => setForm({ ...form, pricePerNight: e.target.value })} style={{ padding: 8 }} />
+            <input type="number" placeholder="Rooms Available" required value={form.roomsAvailable} onChange={(e) => setForm({ ...form, roomsAvailable: e.target.value })} style={{ padding: 8 }} />
+          </div>
+
+          <input placeholder="Image URL" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
+          {form.imageUrl && (
+            <img
+              src={form.imageUrl}
+              alt="Preview"
+              style={{ width: 160, height: 100, objectFit: "cover", borderRadius: 6, marginBottom: 8, display: "block" }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+          )}
+
+          <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
           <button type="submit" style={{ padding: "8px 16px", marginRight: 8 }}>Save</button>
           <button type="button" onClick={resetForm} style={{ padding: "8px 16px" }}>Cancel</button>
         </form>
@@ -103,6 +152,7 @@ export default function HotelsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
+              <th style={{ padding: 8 }}>Photo</th>
               <th style={{ padding: 8 }}>Name</th>
               <th style={{ padding: 8 }}>Region</th>
               <th style={{ padding: 8 }}>Stars</th>
@@ -114,6 +164,15 @@ export default function HotelsPage() {
           <tbody>
             {hotels.map((h) => (
               <tr key={h.id} style={{ borderBottom: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>
+                  {h.imageUrl ? (
+                    <img src={h.imageUrl} alt={h.name} style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 4 }} />
+                  ) : (
+                    <div style={{ width: 64, height: 48, background: "#eee", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#999" }}>
+                      No photo
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: 8 }}>{h.name}</td>
                 <td style={{ padding: 8 }}>{h.region}</td>
                 <td style={{ padding: 8 }}>{"★".repeat(h.starRating)}</td>

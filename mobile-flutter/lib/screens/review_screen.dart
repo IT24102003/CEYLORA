@@ -16,6 +16,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
   final ApiService _apiService = ApiService();
   final _commentController = TextEditingController();
   int _rating = 5;
+  int _hotelRating = 0; // 0 = skip (tourist didn't stay at a hotel, or doesn't want to rate it)
+  int _vehicleRating = 0; // 0 = skip
   File? _photo;
   bool _isSubmitting = false;
   bool _submitted = false;
@@ -58,6 +60,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
         bookingId: widget.bookingId,
         rating: _rating,
         comment: _commentController.text.trim(),
+        hotelRating: _hotelRating > 0 ? _hotelRating : null,
+        vehicleRating: _vehicleRating > 0 ? _vehicleRating : null,
       );
       setState(() => _submitted = true);
     } catch (e) {
@@ -69,6 +73,32 @@ class _ReviewScreenState extends State<ReviewScreen> {
     } finally {
       setState(() => _isSubmitting = false);
     }
+  }
+
+  Widget _buildOptionalStarRow(int value, ValueChanged<int> onChanged) {
+    return Row(
+      children: [
+        ...List.generate(5, (i) {
+          return IconButton(
+            icon: Icon(
+              i < value ? Icons.star : Icons.star_border,
+              color: Colors.amber,
+            ),
+            onPressed: () => onChanged(i + 1),
+          );
+        }),
+        if (value > 0)
+          TextButton(
+            onPressed: () => onChanged(0),
+            child: const Text("Clear", style: TextStyle(fontSize: 12)),
+          )
+        else
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
+            child: Text("(not applicable / skip)", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+      ],
+    );
   }
 
   @override
@@ -96,7 +126,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Your Rating", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("Rate the Guide", style: TextStyle(fontWeight: FontWeight.bold)),
             Row(
               children: List.generate(5, (i) {
                 return IconButton(
@@ -108,6 +138,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 );
               }),
             ),
+            const SizedBox(height: 20),
+            const Text("Rate the Hotel (optional)", style: TextStyle(fontWeight: FontWeight.bold)),
+            _buildOptionalStarRow(_hotelRating, (v) => setState(() => _hotelRating = v)),
+            const SizedBox(height: 12),
+            const Text("Rate the Vehicle (optional)", style: TextStyle(fontWeight: FontWeight.bold)),
+            _buildOptionalStarRow(_vehicleRating, (v) => setState(() => _vehicleRating = v)),
             const SizedBox(height: 12),
             TextField(
               controller: _commentController,

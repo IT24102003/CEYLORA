@@ -31,5 +31,28 @@ namespace CeyloraAPI.Controllers
                 isRainy = result.IsRainy
             });
         }
+
+        // GET: api/weather/forecast-day?lat=7.29&lon=80.63&daysFromNow=2
+        [HttpGet("forecast-day")]
+        public async Task<IActionResult> GetForecastForDay(
+            [FromQuery] double lat, [FromQuery] double lon, [FromQuery] int daysFromNow)
+        {
+            var result = await _weatherService.GetForecastForDayAsync(lat, lon, daysFromNow);
+            if (result == null)
+                return Ok(new
+                {
+                    available = false,
+                    message = "Forecast unavailable for this date (only up to 5 days ahead supported)."
+                });
+
+            return Ok(new
+            {
+                available = true,
+                description = result.Description,
+                temperature = result.TemperatureCelsius,
+                icon = result.Icon,
+                isRainy = result.IsRainy
+            });
+        }
     }
 }

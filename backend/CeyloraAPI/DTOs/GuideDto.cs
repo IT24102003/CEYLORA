@@ -6,5 +6,6 @@ namespace CeyloraAPI.DTOs
         public string? Languages { get; set; }
         public string Region { get; set; } = string.Empty;
         public bool IsAvailable { get; set; } = true;
+        public string? NicNumber { get; set; }
     }
 }

@@ -21,11 +21,13 @@ namespace CeyloraAPI.Controllers
             _hotelService = hotelService;
         }
 
-        // GET: api/hotels?region=Kandy&minStars=3&page=1&pageSize=10
+        // GET: api/hotels?region=Kandy&minStars=3&search=beach&sortBy=rating&page=1&pageSize=10
         [HttpGet]
         public async Task<ActionResult<PagedResultDto<Hotel>>> GetAll(
             [FromQuery] string? region,
             [FromQuery] int? minStars,
+            [FromQuery] string? search,
+            [FromQuery] string? sortBy,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
@@ -37,9 +39,19 @@ namespace CeyloraAPI.Controllers
             if (minStars.HasValue)
                 query = query.Where(h => h.StarRating >= minStars.Value);
 
+            if (!string.IsNullOrWhiteSpace(search))
+                query = query.Where(h => h.Name.ToLower().Contains(search.ToLower())
+                                       || (h.Description != null && h.Description.ToLower().Contains(search.ToLower())));
+
+            query = sortBy?.ToLower() switch
+            {
+                "rating" => query.OrderByDescending(h => h.Rating),
+                "price" => query.OrderBy(h => h.PricePerNight),
+                _ => query.OrderByDescending(h => h.StarRating)
+            };
+
             var totalCount = await query.CountAsync();
             var items = await query
-                .OrderByDescending(h => h.StarRating)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();

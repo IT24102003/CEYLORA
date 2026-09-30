@@ -11,6 +11,7 @@ namespace CeyloraAPI.Data
         public DbSet<Destination> Destinations { get; set; }
         public DbSet<Package> Packages { get; set; }
         public DbSet<PackageDestination> PackageDestinations { get; set; }
+        public DbSet<PackageHotel> PackageHotels { get; set; }
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<Itinerary> Itineraries { get; set; }
         public DbSet<ItineraryDay> ItineraryDays { get; set; }
@@ -25,5 +26,9 @@ namespace CeyloraAPI.Data
         public DbSet<Payment> Payments { get; set; }
         public DbSet<AgentWorkflow> AgentWorkflows { get; set; }
         public DbSet<AgentExecutionLog> AgentExecutionLogs { get; set; }
+        public DbSet<Favorite> Favorites { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<VehicleOwner> VehicleOwners { get; set; }
     }
 }

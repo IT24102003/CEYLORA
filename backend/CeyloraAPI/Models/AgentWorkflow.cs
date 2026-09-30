@@ -7,6 +7,7 @@ namespace CeyloraAPI.Models
         public int Id { get; set; }
         public int? BookingId { get; set; }
         public Booking? Booking { get; set; } = null!;
+        public int? TouristId { get; set; } // who submitted this plan — used to notify them on approve/reject
         public string Objective { get; set; } = string.Empty;
         public string? PlanJson { get; set; }
         public WorkflowStatus Status { get; set; } = WorkflowStatus.Running;

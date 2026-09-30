@@ -95,7 +95,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
           const SizedBox(height: 16),
           const Text("Payment Successful!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text("Booking #${widget.booking["id"]} is now confirmed."),
+          Text("We've received your payment for Booking #${widget.booking["id"]}."),
+          const SizedBox(height: 4),
+          const Text(
+            "If this trip hasn't been confirmed yet, our team will assign a guide & vehicle shortly.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
           const SizedBox(height: 24),
           TextButton(
             onPressed: () {

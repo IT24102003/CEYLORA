@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import '../providers/auth_provider.dart';
+import 'guide_register_screen.dart';
+import 'vehicle_owner_register_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,10 +16,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  int _role = 0;
+  static const int _role = 0; // this form is Tourist-only; Guide/VehicleOwner have their own forms
   String? _error;
 
-  String _country = "";
+  String _country = "Sri Lanka"; // matches initialCountryCode: 'LK' below — only changes if user picks a different country
   String _mobileNumber = "";
 
   Future<void> _handleRegister() async {
@@ -76,7 +78,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: const InputDecoration(
                 labelText: "Mobile Number",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
               ),
+              flagsButtonPadding: const EdgeInsets.only(left: 6),
+              dropdownIconPosition: IconPosition.trailing,
+              dropdownIcon: const Icon(Icons.arrow_drop_down, size: 20),
               initialCountryCode: 'LK', // Sri Lanka default
               onChanged: (phone) {
                 _mobileNumber = phone.completeNumber; // includes dial code, e.g. +94771234567
@@ -85,18 +91,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _country = country.name; // e.g. "Sri Lanka"
               },
             ),
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<int>(
-              value: _role,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: "I am a..."),
-              items: const [
-                DropdownMenuItem(value: 0, child: Text("Tourist")),
-                DropdownMenuItem(value: 1, child: Text("Guide / Vehicle Owner")),
-              ],
-              onChanged: (val) => setState(() => _role = val!),
-            ),
             const SizedBox(height: 20),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -104,7 +98,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed: isLoading ? null : _handleRegister,
               child: isLoading
                   ? const CircularProgressIndicator()
-                  : const Text("Register"),
+                  : const Text("Register as a Tourist"),
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 12),
+            const Text(
+              "Want to work with tourists instead?",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.hiking),
+              label: const Text("Register as a Guide"),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const GuideRegisterScreen()));
+              },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.directions_car),
+              label: const Text("Register as a Vehicle Owner"),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const VehicleOwnerRegisterScreen()));
+              },
             ),
           ],
         ),

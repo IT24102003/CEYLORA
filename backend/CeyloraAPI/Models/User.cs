@@ -1,6 +1,8 @@
 namespace CeyloraAPI.Models
 {
-    public enum UserRole { Tourist, Guide, Admin }
+    // VehicleOwner MUST stay at the end — the int value is stored in the DB, and inserting
+    // a new member earlier would silently reassign every existing Admin/Guide account's role.
+    public enum UserRole { Tourist, Guide, Admin, VehicleOwner }
 
     public class User
     {

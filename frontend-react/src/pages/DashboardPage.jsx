@@ -17,6 +17,7 @@ export default function DashboardPage() {
       <Link to="/vehicles" style={{ marginLeft: 10 }}>Vehicles</Link>
       <Link to="/reviews" style={{ marginLeft: 10 }}>Reviews</Link>
       <Link to="/analytics" style={{ marginLeft: 10 }}>Analytics</Link>
+      <Link to="/verifications" style={{ marginLeft: 10 }}>Verifications</Link>
       <button onClick={logout}>Logout</button>
     </div>
   );

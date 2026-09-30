@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminLayout from "./components/AdminLayout";
 import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
 import AgentMonitorPage from "./pages/AgentMonitorPage";
 import DestinationsPage from "./pages/DestinationsPage";
 import PackagesPage from "./pages/PackagesPage";
@@ -12,6 +12,7 @@ import GuidesPage from "./pages/GuidesPage";
 import VehiclesPage from "./pages/VehiclesPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import VerificationsPage from "./pages/VerificationsPage";
 
 function App() {
   return (
@@ -19,87 +20,30 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Every admin page shares the left-side nav from AdminLayout. Logging in (or
+              hitting "/" or the old "/dashboard" link) lands on Analytics first. */}
           <Route
-            path="/dashboard"
             element={
               <ProtectedRoute>
-                <DashboardPage />
+                <AdminLayout />
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="/agent-monitor"
-            element={
-              <ProtectedRoute>
-                <AgentMonitorPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/destinations"
-            element={
-              <ProtectedRoute>
-                <DestinationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/packages" 
-            element={
-                <ProtectedRoute>
-                    <PackagesPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/hotels" 
-            element={
-                <ProtectedRoute>
-                    <HotelsPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/bookings" 
-            element={
-              <ProtectedRoute>
-                    <BookingsPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/guides" 
-            element={
-                <ProtectedRoute>
-                    <GuidesPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/vehicles" 
-            element={
-                <ProtectedRoute>
-                    <VehiclesPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/reviews" 
-            element={
-                <ProtectedRoute>
-                    <ReviewsPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/analytics" 
-            element={
-                <ProtectedRoute>
-                    <AnalyticsPage />
-                </ProtectedRoute>
-            } 
-          />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          >
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/agent-monitor" element={<AgentMonitorPage />} />
+            <Route path="/destinations" element={<DestinationsPage />} />
+            <Route path="/packages" element={<PackagesPage />} />
+            <Route path="/hotels" element={<HotelsPage />} />
+            <Route path="/bookings" element={<BookingsPage />} />
+            <Route path="/guides" element={<GuidesPage />} />
+            <Route path="/vehicles" element={<VehiclesPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route path="/verifications" element={<VerificationsPage />} />
+          </Route>
+
+          <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+          <Route path="/" element={<Navigate to="/analytics" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
@@ -22,7 +21,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   String? _country;
   String? _mobileNumber;
   String? _existingProfilePictureUrl;
-  File? _newProfilePicture;
+  Uint8List? _newProfilePictureBytes;
+  String? _newProfilePictureName;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -77,7 +77,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 70, maxWidth: 800);
     if (picked != null) {
-      setState(() => _newProfilePicture = File(picked.path));
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _newProfilePictureBytes = bytes;
+        _newProfilePictureName = picked.name;
+      });
     }
   }
 
@@ -89,8 +93,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     try {
       // Upload new picture first, if one was picked
-      if (_newProfilePicture != null) {
-        await _apiService.uploadProfilePicture(_newProfilePicture!.path);
+      if (_newProfilePictureBytes != null) {
+        await _apiService.uploadProfilePicture(
+          UploadFile(_newProfilePictureBytes!, _newProfilePictureName ?? "profile.jpg"),
+        );
       }
 
       await _apiService.updateMyProfile(
@@ -115,12 +121,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   Widget _buildProfileImage() {
-    if (_newProfilePicture != null) {
+    if (_newProfilePictureBytes != null) {
       return CircleAvatar(
         radius: 50,
-        backgroundImage: kIsWeb
-            ? NetworkImage(_newProfilePicture!.path)
-            : FileImage(_newProfilePicture!) as ImageProvider,
+        backgroundImage: MemoryImage(_newProfilePictureBytes!),
       );
     }
     if (_existingProfilePictureUrl != null && _existingProfilePictureUrl!.isNotEmpty) {
@@ -194,7 +198,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               decoration: const InputDecoration(
                 labelText: "Mobile Number",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
               ),
+              flagsButtonPadding: const EdgeInsets.only(left: 6),
+              dropdownIconPosition: IconPosition.trailing,
+              dropdownIcon: const Icon(Icons.arrow_drop_down, size: 20),
               onChanged: (phone) {
                 _mobileNumber = phone.completeNumber;
               },

@@ -7,6 +7,7 @@ namespace CeyloraAPI.Models
         public string Region { get; set; } = string.Empty;
         public string? Address { get; set; }
         public int StarRating { get; set; }
+        public double Rating { get; set; } = 0; // tourist-review average (0 = no reviews yet), separate from StarRating (hotel's official star class)
         public decimal PricePerNight { get; set; }
         public int RoomsAvailable { get; set; }
         public string? Description { get; set; }

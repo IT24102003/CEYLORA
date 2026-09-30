@@ -23,12 +23,49 @@ namespace CeyloraAPI.Controllers
 
         private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+        // GET: api/users?role=Guide (Admin only)
+        // Used by the admin panel to link a User account with role=Guide to a Guide profile.
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetUsers([FromQuery] string? role)
+        {
+            var query = _context.Users.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(role) && Enum.TryParse<Models.UserRole>(role, true, out var roleEnum))
+                query = query.Where(u => u.Role == roleEnum);
+
+            var users = await query.OrderBy(u => u.Name).ToListAsync();
+            var guideUserIds = (await _context.Guides.Select(g => g.UserId).ToListAsync()).ToHashSet();
+
+            var result = users.Select(u => new
+            {
+                id = u.Id,
+                name = u.Name,
+                email = u.Email,
+                role = u.Role.ToString(),
+                hasGuideProfile = guideUserIds.Contains(u.Id)
+            });
+
+            return Ok(result);
+        }
+
         // GET: api/users/me
         [HttpGet("me")]
         public async Task<ActionResult<UserProfileDto>> GetMyProfile()
         {
             var user = await _context.Users.FindAsync(CurrentUserId);
             if (user == null) return NotFound();
+
+            bool isVerified = true;
+            if (user.Role == Models.UserRole.Guide)
+            {
+                var guide = await _context.Guides.FirstOrDefaultAsync(g => g.UserId == user.Id);
+                isVerified = guide?.IsVerified ?? true;
+            }
+            else if (user.Role == Models.UserRole.VehicleOwner)
+            {
+                var vo = await _context.VehicleOwners.FirstOrDefaultAsync(v => v.UserId == user.Id);
+                isVerified = vo?.IsVerified ?? true;
+            }
 
             return Ok(new UserProfileDto
             {
@@ -39,7 +76,8 @@ namespace CeyloraAPI.Controllers
                 Age = user.Age,
                 Country = user.Country,
                 MobileNumber = user.MobileNumber,
-                ProfilePictureUrl = user.ProfilePictureUrl
+                ProfilePictureUrl = user.ProfilePictureUrl,
+                IsVerified = isVerified
             });
         }
 

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/guide_home_screen.dart';
 
 void main() {
   runApp(const CeyloraApp());
@@ -37,10 +36,12 @@ class AuthWrapper extends StatelessWidget {
 
     if (!auth.isLoggedIn) return const LoginScreen();
 
-    // Role-based routing: same app, different screens per role
-    if (auth.role == "Guide") {
-      return const GuideHomeScreen();
-    }
-    return const HomeScreen(); // Tourist (default)
+    // Everyone — Tourist, Guide, VehicleOwner — uses the same normal app interface,
+    // whether or not a Guide/VehicleOwner has been verified by an Admin yet. Verification
+    // only controls whether they're shown to other users (handled server-side); it never
+    // blocks them from using the app themselves. A Guide/VehicleOwner's dashboard (available
+    // status, rating, earnings, assigned/completed trips, profile edit) lives under "My
+    // Profile" inside HomeScreen, not as a separate gate here.
+    return const HomeScreen();
   }
 }

@@ -10,6 +10,7 @@ namespace CeyloraAPI.DTOs
         public string? Country { get; set; }
         public string? MobileNumber { get; set; }
         public string? ProfilePictureUrl { get; set; }
+        public bool IsVerified { get; set; } = true;
     }
 
     public class UpdateProfileDto

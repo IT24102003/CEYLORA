@@ -7,14 +7,19 @@ export default function DestinationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
-    name: "", region: "", description: "", category: "", imageUrl: "",
+    name: "", region: "", description: "", category: "", imageUrl: "", latitude: "", longitude: "",
   });
   const [search, setSearch] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const fetchDestinations = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/destinations", { params: { search, pageSize: 50 } });
+      const params = { search, pageSize: 50 };
+      if (regionFilter) params.region = regionFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      const res = await api.get("/destinations", { params });
       setDestinations(res.data.items);
     } catch (err) {
       console.error(err);
@@ -29,18 +34,23 @@ export default function DestinationsPage() {
   }, []);
 
   const resetForm = () => {
-    setForm({ name: "", region: "", description: "", category: "", imageUrl: "" });
+    setForm({ name: "", region: "", description: "", category: "", imageUrl: "", latitude: "", longitude: "" });
     setEditingId(null);
     setShowForm(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const payload = {
+      ...form,
+      latitude: form.latitude === "" ? null : parseFloat(form.latitude),
+      longitude: form.longitude === "" ? null : parseFloat(form.longitude),
+    };
     try {
       if (editingId) {
-        await api.put(`/destinations/${editingId}`, form);
+        await api.put(`/destinations/${editingId}`, payload);
       } else {
-        await api.post("/destinations", form);
+        await api.post("/destinations", payload);
       }
       resetForm();
       fetchDestinations();
@@ -65,6 +75,7 @@ export default function DestinationsPage() {
     setForm({
       name: dest.name, region: dest.region, description: dest.description || "",
       category: dest.category || "", imageUrl: dest.imageUrl || "",
+      latitude: dest.latitude ?? "", longitude: dest.longitude ?? "",
     });
     setEditingId(dest.id);
     setShowForm(true);
@@ -91,6 +102,18 @@ export default function DestinationsPage() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ padding: 8, flex: 1 }}
         />
+        <input
+          placeholder="Filter by region..."
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value)}
+          style={{ padding: 8, width: 160 }}
+        />
+        <input
+          placeholder="Filter by category..."
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          style={{ padding: 8, width: 160 }}
+        />
         <button onClick={fetchDestinations} style={{ padding: "8px 16px" }}>Search</button>
         <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none" }}>
           + Add Destination
@@ -105,6 +128,26 @@ export default function DestinationsPage() {
           <input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
           <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
           <input placeholder="Image URL" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
+          {form.imageUrl && (
+            <img
+              src={form.imageUrl}
+              alt="Preview"
+              style={{ width: 120, height: 80, objectFit: "cover", borderRadius: 6, marginBottom: 8, display: "block" }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+          )}
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input
+              type="number" step="any" placeholder="Latitude"
+              value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+              style={{ flex: 1, padding: 8 }}
+            />
+            <input
+              type="number" step="any" placeholder="Longitude"
+              value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+              style={{ flex: 1, padding: 8 }}
+            />
+          </div>
           <button type="submit" style={{ padding: "8px 16px", marginRight: 8 }}>Save</button>
           <button type="button" onClick={resetForm} style={{ padding: "8px 16px" }}>Cancel</button>
         </form>
@@ -116,9 +159,11 @@ export default function DestinationsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
+              <th style={{ padding: 8 }}>Photo</th>
               <th style={{ padding: 8 }}>Name</th>
               <th style={{ padding: 8 }}>Region</th>
               <th style={{ padding: 8 }}>Category</th>
+              <th style={{ padding: 8 }}>Coordinates</th>
               <th style={{ padding: 8 }}>Weather</th>
               <th style={{ padding: 8 }}>Actions</th>
             </tr>
@@ -126,9 +171,21 @@ export default function DestinationsPage() {
           <tbody>
             {destinations.map((d) => (
               <tr key={d.id} style={{ borderBottom: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>
+                  {d.imageUrl ? (
+                    <img src={d.imageUrl} alt={d.name} style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 4 }} />
+                  ) : (
+                    <div style={{ width: 64, height: 48, background: "#eee", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#999" }}>
+                      No photo
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: 8 }}>{d.name}</td>
                 <td style={{ padding: 8 }}>{d.region}</td>
                 <td style={{ padding: 8 }}>{d.category}</td>
+                <td style={{ padding: 8, fontSize: 12, color: "#666" }}>
+                  {d.latitude != null && d.longitude != null ? `${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}` : "—"}
+                </td>
                 <td style={{ padding: 8 }}>
                     {weatherData[d.id] ? (
                         weatherData[d.id].available ? (

@@ -15,11 +15,13 @@ namespace CeyloraAPI.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IEmailService _emailService;
+        private readonly INotificationService _notificationService;
 
-        public PaymentsController(AppDbContext context, IEmailService emailService)
+        public PaymentsController(AppDbContext context, IEmailService emailService, INotificationService notificationService)
         {
             _context = context;
             _emailService = emailService;
+            _notificationService = notificationService;
         }
 
         // GET: api/payments/booking/5
@@ -54,7 +56,12 @@ namespace CeyloraAPI.Controllers
 
             _context.Payments.Add(payment);
 
-            booking.Status = BookingStatus.Confirmed;
+            // 🔥 Payment no longer force-confirms the booking. For a package purchase, the
+            // trip still needs the admin to assign a guide/vehicle (gated on IsPaid — see
+            // AssignmentsController.AssignAndConfirm) before it becomes Confirmed. For an
+            // AI-planned trip, the booking is ALREADY Confirmed by the time payment happens
+            // (that flow pays after admin approval), so this just marks it paid either way.
+            booking.IsPaid = true;
             booking.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -64,6 +71,8 @@ namespace CeyloraAPI.Controllers
             {
                 _ = _emailService.SendPaymentConfirmationEmailAsync(
                     tourist.Email, tourist.Name, booking.Id, payment.Amount);
+                await _notificationService.CreateAsync(
+                    tourist.Id, "Payment Confirmed", $"We received your payment of LKR {payment.Amount} for booking #{booking.Id}.", NotificationType.PaymentConfirmed);
             }
 
             return CreatedAtAction(nameof(GetByBooking), new { bookingId = dto.BookingId }, payment);

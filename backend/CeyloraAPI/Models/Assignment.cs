@@ -1,6 +1,7 @@
 namespace CeyloraAPI.Models
 {
-    public enum AssignmentStatus { Proposed, Confirmed, Cancelled }
+    // InProgress/Completed added at the END — existing values keep their int, no migration needed.
+    public enum AssignmentStatus { Proposed, Confirmed, Cancelled, InProgress, Completed }
 
     public class Assignment
     {
