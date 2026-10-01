@@ -1,215 +1,199 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { CloudRain, MapPin, Pencil, Plus, Sun, Thermometer, Trash2 } from "lucide-react";
 import api, { getWeather } from "../services/api";
+import {
+  Alert, Badge, Button, Card, DataTable, Drawer, EmptyState, ErrorState, IconButton, Input, PageHeader, SearchInput,
+  TableSkeleton, Textarea, Thumb, Toolbar, useConfirm, useToast,
+} from "../components/ui";
+import { errorMessage, useAction, useRemote } from "../lib/hooks";
+
+const EMPTY_FORM = { name: "", region: "", description: "", category: "", imageUrl: "", latitude: "", longitude: "" };
+const EMPTY_FILTERS = { search: "", region: "", category: "" };
 
 export default function DestinationsPage() {
-  const [destinations, setDestinations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
-    name: "", region: "", description: "", category: "", imageUrl: "", latitude: "", longitude: "",
-  });
-  const [search, setSearch] = useState("");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [draft, setDraft] = useState(EMPTY_FILTERS);
+  const [applied, setApplied] = useState(EMPTY_FILTERS);
+  const [editing, setEditing] = useState(null); // null | "new" | destination
+  const [weather, setWeather] = useState({});
+  const [busy, act] = useAction();
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  const fetchDestinations = async () => {
-    setLoading(true);
+  const { data: destinations, loading, error, reload } = useRemote(async () => {
+    const params = { search: applied.search, pageSize: 50 };
+    if (applied.region) params.region = applied.region;
+    if (applied.category) params.category = applied.category;
+    return (await api.get("/destinations", { params })).data.items;
+  }, [applied]);
+
+  const set = (k) => (e) => setDraft((d) => ({ ...d, [k]: e.target.value }));
+  const apply = () => setApplied(draft);
+  const reset = () => { setDraft(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
+  const activeFilters = [draft.region, draft.category].filter(Boolean).length;
+  const isFiltered = Object.values(applied).some(Boolean);
+
+  const fetchWeather = (d) =>
+    act(`w${d.id}`, async () => {
+      try {
+        const res = await getWeather(d.latitude, d.longitude);
+        setWeather((prev) => ({ ...prev, [d.id]: res.data }));
+      } catch {
+        toast.error(`Weather lookup failed for ${d.name}.`);
+      }
+    });
+
+  const handleDelete = async (d) => {
+    const ok = await confirm({ title: `Delete ${d.name}?`, message: "The destination will be removed from the catalog and from any packages that include it.", confirmLabel: "Delete destination" });
+    if (!ok) return;
     try {
-      const params = { search, pageSize: 50 };
-      if (regionFilter) params.region = regionFilter;
-      if (categoryFilter) params.category = categoryFilter;
-      const res = await api.get("/destinations", { params });
-      setDestinations(res.data.items);
+      await api.delete(`/destinations/${d.id}`);
+      toast.success("Destination deleted.");
+      reload();
     } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      toast.error(errorMessage(err, "Failed to delete destination."));
     }
   };
 
-  useEffect(() => {
-    fetchDestinations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const columns = [
+    {
+      key: "place", header: "Destination", primary: true,
+      render: (d) => (
+        <div className="row">
+          <Thumb src={d.imageUrl} alt={d.name} icon={MapPin} />
+          <div style={{ minWidth: 0 }}>
+            <div><strong>{d.name}</strong></div>
+            <div className="cell-sub">{d.region}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: "category", header: "Category", render: (d) => (d.category ? <Badge>{d.category}</Badge> : "—") },
+    {
+      key: "coords", header: "Coordinates",
+      render: (d) => d.latitude != null && d.longitude != null
+        ? <span className="mono muted" style={{ fontSize: "var(--fs-sm)" }}>{d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}</span> : "—",
+    },
+    {
+      key: "weather", header: "Weather",
+      render: (d) => {
+        const w = weather[d.id];
+        if (w) {
+          return w.available
+            ? <Badge tone={w.isRainy ? "info" : "warning"} icon={w.isRainy ? CloudRain : Sun}>{w.temperature}°C</Badge>
+            : <span className="muted">N/A</span>;
+        }
+        if (!d.latitude || !d.longitude) return <span className="muted">No coordinates</span>;
+        return <Button size="sm" icon={Thermometer} loading={busy === `w${d.id}`} onClick={() => fetchWeather(d)}>Check</Button>;
+      },
+    },
+    {
+      key: "actions", actions: true,
+      render: (d) => (
+        <div className="row" style={{ justifyContent: "flex-end", gap: 4 }}>
+          <Button size="sm" icon={Pencil} onClick={() => setEditing(d)}>Edit</Button>
+          <IconButton icon={Trash2} label={`Delete ${d.name}`} size="sm" variant="soft-danger" onClick={() => handleDelete(d)} />
+        </div>
+      ),
+    },
+  ];
 
-  const resetForm = () => {
-    setForm({ name: "", region: "", description: "", category: "", imageUrl: "", latitude: "", longitude: "" });
-    setEditingId(null);
-    setShowForm(false);
-  };
+  const filters = (
+    <>
+      <Input aria-label="Region" placeholder="Region" value={draft.region} onChange={set("region")} />
+      <Input aria-label="Category" placeholder="Category" value={draft.category} onChange={set("category")} />
+    </>
+  );
 
-  const handleSubmit = async (e) => {
+  return (
+    <div className="page">
+      <PageHeader title="Destinations" subtitle="Places travellers can visit. Coordinates power route maps and live weather." actions={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add destination</Button>} />
+
+      <Toolbar
+        search={<SearchInput value={draft.search} onChange={(v) => setDraft((d) => ({ ...d, search: v }))} onEnter={apply} placeholder="Search destinations…" />}
+        filters={filters}
+        activeFilters={activeFilters}
+        onApply={apply}
+        onReset={reset}
+      />
+
+      {loading && !destinations ? (
+        <Card><TableSkeleton /></Card>
+      ) : error && !destinations ? (
+        <Card><ErrorState text="Destinations could not be loaded." onRetry={reload} /></Card>
+      ) : destinations.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={MapPin}
+            title={isFiltered ? "No destinations match your filters" : "No destinations yet"}
+            text={isFiltered ? "Try removing a filter or searching for something else." : "Add your first destination to start building packages."}
+            action={isFiltered ? <Button onClick={reset}>Clear filters</Button> : <Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add destination</Button>}
+          />
+        </Card>
+      ) : (
+        <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity var(--dur-base)" }}>
+          <DataTable columns={columns} rows={destinations} caption="Destinations" />
+        </div>
+      )}
+
+      {editing && (
+        <DestinationDrawer
+          destination={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(isEdit) => { setEditing(null); toast.success(isEdit ? "Destination updated." : "Destination added."); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DestinationDrawer({ destination: dest, onClose, onSaved }) {
+  const [form, setForm] = useState(() => dest ? {
+    name: dest.name, region: dest.region, description: dest.description || "", category: dest.category || "",
+    imageUrl: dest.imageUrl || "", latitude: dest.latitude ?? "", longitude: dest.longitude ?? "",
+  } : EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [imgOk, setImgOk] = useState(true);
+  const f = (k) => ({ value: form[k], onChange: (e) => setForm({ ...form, [k]: e.target.value }) });
+
+  const submit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
     const payload = {
       ...form,
       latitude: form.latitude === "" ? null : parseFloat(form.latitude),
       longitude: form.longitude === "" ? null : parseFloat(form.longitude),
     };
     try {
-      if (editingId) {
-        await api.put(`/destinations/${editingId}`, payload);
-      } else {
-        await api.post("/destinations", payload);
-      }
-      resetForm();
-      fetchDestinations();
+      if (dest) await api.put(`/destinations/${dest.id}`, payload);
+      else await api.post("/destinations", payload);
+      onSaved(!!dest);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to save destination.");
-    }
-  };
-
-  const [weatherData, setWeatherData] = useState({});
-
-  const fetchWeather = async (dest) => {
-  if (!dest.latitude || !dest.longitude) return;
-  try {
-    const res = await getWeather(dest.latitude, dest.longitude);
-    setWeatherData((prev) => ({ ...prev, [dest.id]: res.data }));
-  } catch (err) {
-    console.error("Weather fetch failed", err);
-  }
-};
-
-  const handleEdit = (dest) => {
-    setForm({
-      name: dest.name, region: dest.region, description: dest.description || "",
-      category: dest.category || "", imageUrl: dest.imageUrl || "",
-      latitude: dest.latitude ?? "", longitude: dest.longitude ?? "",
-    });
-    setEditingId(dest.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this destination?")) return;
-    try {
-      await api.delete(`/destinations/${id}`);
-      fetchDestinations();
-    } catch (err) {
-      alert("Failed to delete.");
+      setError(errorMessage(err, "Failed to save destination."));
+      setSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>Destinations</h2>
-
-      <div style={{ marginBottom: 16, display: "flex", gap: 8 }}>
-        <input
-          placeholder="Search destinations..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 8, flex: 1 }}
-        />
-        <input
-          placeholder="Filter by region..."
-          value={regionFilter}
-          onChange={(e) => setRegionFilter(e.target.value)}
-          style={{ padding: 8, width: 160 }}
-        />
-        <input
-          placeholder="Filter by category..."
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          style={{ padding: 8, width: 160 }}
-        />
-        <button onClick={fetchDestinations} style={{ padding: "8px 16px" }}>Search</button>
-        <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none" }}>
-          + Add Destination
-        </button>
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 20, borderRadius: 8 }}>
-          <h3>{editingId ? "Edit" : "Add"} Destination</h3>
-          <input placeholder="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input placeholder="Region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          <input placeholder="Image URL" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8 }} />
-          {form.imageUrl && (
-            <img
-              src={form.imageUrl}
-              alt="Preview"
-              style={{ width: 120, height: 80, objectFit: "cover", borderRadius: 6, marginBottom: 8, display: "block" }}
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
-          )}
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input
-              type="number" step="any" placeholder="Latitude"
-              value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-              style={{ flex: 1, padding: 8 }}
-            />
-            <input
-              type="number" step="any" placeholder="Longitude"
-              value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-              style={{ flex: 1, padding: 8 }}
-            />
-          </div>
-          <button type="submit" style={{ padding: "8px 16px", marginRight: 8 }}>Save</button>
-          <button type="button" onClick={resetForm} style={{ padding: "8px 16px" }}>Cancel</button>
-        </form>
-      )}
-
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
-              <th style={{ padding: 8 }}>Photo</th>
-              <th style={{ padding: 8 }}>Name</th>
-              <th style={{ padding: 8 }}>Region</th>
-              <th style={{ padding: 8 }}>Category</th>
-              <th style={{ padding: 8 }}>Coordinates</th>
-              <th style={{ padding: 8 }}>Weather</th>
-              <th style={{ padding: 8 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {destinations.map((d) => (
-              <tr key={d.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>
-                  {d.imageUrl ? (
-                    <img src={d.imageUrl} alt={d.name} style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 4 }} />
-                  ) : (
-                    <div style={{ width: 64, height: 48, background: "#eee", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#999" }}>
-                      No photo
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: 8 }}>{d.name}</td>
-                <td style={{ padding: 8 }}>{d.region}</td>
-                <td style={{ padding: 8 }}>{d.category}</td>
-                <td style={{ padding: 8, fontSize: 12, color: "#666" }}>
-                  {d.latitude != null && d.longitude != null ? `${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}` : "—"}
-                </td>
-                <td style={{ padding: 8 }}>
-                    {weatherData[d.id] ? (
-                        weatherData[d.id].available ? (
-                            <span>
-                                {weatherData[d.id].temperature}°C {weatherData[d.id].isRainy ? "🌧️" : "☀️"}
-                            </span>
-                        ) : (
-                            <span style={{ color: "#999" }}>N/A</span>
-                        )
-                    ) : (
-                        <button onClick={() => fetchWeather(d)} style={{ fontSize: 12, padding: "2px 8px" }}>
-                            Check
-                        </button>
-                    )}
-                </td>
-                <td style={{ padding: 8 }}>
-                  <button onClick={() => handleEdit(d)} style={{ marginRight: 8 }}>Edit</button>
-                  <button onClick={() => handleDelete(d.id)} style={{ color: "red" }}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <Drawer
+      title={dest ? "Edit destination" : "Add destination"}
+      onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button type="submit" form="dest-form" variant="primary" loading={submitting}>{dest ? "Save changes" : "Add destination"}</Button></>}
+    >
+      <form id="dest-form" className="form-grid" onSubmit={submit}>
+        {error && <Alert tone="error" className="span-all">{error}</Alert>}
+        <Input label="Name" required {...f("name")} />
+        <Input label="Region" required {...f("region")} />
+        <Input label="Category" className="span-all" placeholder="e.g. Beach, Heritage, Wildlife" {...f("category")} />
+        <Textarea label="Description" className="span-all" {...f("description")} />
+        <Input label="Image URL" type="url" inputMode="url" className="span-all" placeholder="https://…" {...f("imageUrl")} onChange={(e) => { setImgOk(true); setForm({ ...form, imageUrl: e.target.value }); }} />
+        {form.imageUrl && imgOk && (
+          <img className="thumb thumb--lg" src={form.imageUrl} alt="Destination preview" onError={() => setImgOk(false)} style={{ gridColumn: "1 / -1", objectFit: "cover" }} />
+        )}
+        <Input label="Latitude" type="number" step="any" hint="e.g. 7.2906" {...f("latitude")} />
+        <Input label="Longitude" type="number" step="any" hint="e.g. 80.6337" {...f("longitude")} />
+      </form>
+    </Drawer>
   );
 }

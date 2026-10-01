@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 import 'profile_edit_screen.dart';
-import 'chat_screen.dart';
-import 'payment_screen.dart';
-import 'booking_details_screen.dart';
-import 'review_screen.dart';
 
+/// Profile tab (all roles): who you are, your contact details and (for tourists) the reviews you've left.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -15,247 +14,236 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+class _ReviewItem {
+  _ReviewItem(this.trip, this.review);
+  final String trip;
+  final Map<String, dynamic> review;
+}
+
 class _ProfileScreenState extends State<ProfileScreen> {
-  final ApiService _apiService = ApiService();
-  List<dynamic> _bookings = [];
-  Map<int, int> _unreadChatCounts = {};
-  final Set<int> _reviewedBookingIds = {};
-  bool _isLoading = true;
+  final ApiService _api = ApiService();
+  Map<String, dynamic>? _profile;
+  List<_ReviewItem> _reviews = [];
+  bool _loading = true;
+  String? _error;
+
+  bool get _isTourist {
+    final r = context.read<AuthProvider>().role;
+    return r != "Guide" && r != "VehicleOwner";
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadBookings();
+    _load();
   }
 
-  Future<void> _loadBookings() async {
-    setState(() => _isLoading = true);
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final results = await _apiService.getMyBookings();
-      final unread = await _apiService.getChatUnreadCounts();
-      setState(() {
-        _bookings = results;
-        _unreadChatCounts = unread;
-      });
-      // Check which "Ended" trips already have a review, so we don't offer the button twice.
-      final endedIds = results
-          .where((b) => (b["status"] is int ? b["status"] == 3 : b["status"] == "Ended"))
-          .map<int>((b) => b["id"] as int)
-          .toList();
-      for (final id in endedIds) {
-        final reviews = await _apiService.getReviewsForBooking(id);
-        if (reviews.isNotEmpty && mounted) {
-          setState(() => _reviewedBookingIds.add(id));
+      final profile = await _api.getMyProfile();
+      final reviews = <_ReviewItem>[];
+      if (_isTourist) {
+        // Reviews are stored per booking, so collect them from the trips that have ended.
+        final bookings = await _api.getMyBookings();
+        final ended = bookings.where((b) => bookingStatusLabel(b["status"]) == "Ended").toList();
+        final lists = await Future.wait(ended.map((b) => _api.getReviewsForBooking(b["id"] as int)));
+        for (var i = 0; i < ended.length; i++) {
+          final b = ended[i];
+          final name = (b["packageName"] ?? b["package"]?["name"] ?? "Custom trip").toString();
+          for (final r in lists[i]) {
+            reviews.add(_ReviewItem(name, Map<String, dynamic>.from(r)));
+          }
         }
+        reviews.sort((a, b) => (b.review["createdAt"] ?? "").toString().compareTo((a.review["createdAt"] ?? "").toString()));
       }
-    } catch (e) {
-      // ignore, empty state handles it
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _reviews = reviews;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = "We couldn't load your profile.");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _payNow(Map<String, dynamic> booking) {
-    Navigator.push(
+  Future<void> _logout() async {
+    final ok = await confirmSheet(
       context,
-      MaterialPageRoute(builder: (_) => PaymentScreen(booking: booking)),
-    ).then((_) => _loadBookings());
-  }
-
-  void _openChat(int bookingId, String packageName) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(bookingId: bookingId, title: packageName.isNotEmpty ? packageName : "Chat"),
-      ),
-    ).then((_) => _loadBookings());
-  }
-
-  Future<void> _confirmCancelBooking(int bookingId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Cancel Booking?"),
-        content: Text("Are you sure you want to cancel booking #$bookingId? This can't be undone."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Keep Booking")),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Yes, Cancel", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      title: "Sign out?",
+      message: "You'll need to sign in again to see your trips and messages.",
+      confirmLabel: "Sign out",
+      destructive: true,
     );
+    if (ok && mounted) context.read<AuthProvider>().logout();
+  }
 
-    if (confirmed != true) return;
+  String _roleLabel(String? role) => switch (role) {
+        "VehicleOwner" => "Vehicle owner",
+        null => "",
+        _ => role,
+      };
 
-    try {
-      await _apiService.cancelBooking(bookingId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Booking cancelled.")),
-        );
-      }
-      _loadBookings();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to cancel booking.")),
-        );
-      }
-    }
+  String? _photoUrl() {
+    final u = (_profile?["profilePictureUrl"] ?? "").toString();
+    if (u.isEmpty) return null;
+    return u.startsWith("http") ? u : "${ApiService.baseUrl.replaceAll('/api', '')}$u";
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final p = context.palette;
+    final avg = _reviews.isEmpty ? 0.0 : _reviews.map((r) => ((r.review["rating"] ?? 0) as num).toDouble()).reduce((a, b) => a + b) / _reviews.length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("My Profile")),
+      appBar: AppBar(title: const Text("Profile")),
       body: RefreshIndicator(
-        onRefresh: _loadBookings,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.teal.shade100,
-                    child: Text(
-                      (auth.name?.isNotEmpty == true) ? auth.name![0].toUpperCase() : "?",
-                      style: const TextStyle(fontSize: 28, color: Colors.teal),
+        onRefresh: _load,
+        child: StateView(
+          loading: _loading && _profile == null,
+          error: _profile == null ? _error : null,
+          onRetry: _load,
+          skeleton: const SkeletonList(count: 3, leading: false),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, Space.xxl),
+            children: [
+              FadeInUp(
+                child: GlassCard(
+                  child: Column(children: [
+                    AppAvatar(auth.name, size: 92, imageUrl: _photoUrl()),
+                    const SizedBox(height: Space.md),
+                    Text(auth.name ?? "", style: context.text.headlineSmall!.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: Space.xs),
+                    StatusBadge(_roleLabel(auth.role), tone: Tone.info),
+                    if ((_profile?["email"] ?? "").toString().isNotEmpty) ...[
+                      const SizedBox(height: Space.sm),
+                      Text("${_profile!["email"]}", style: context.text.bodyMedium!.copyWith(color: p.textSecondary)),
+                    ],
+                    const SizedBox(height: Space.lg),
+                    AppButton(
+                      label: "Edit profile",
+                      icon: Icons.edit_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () async {
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileEditScreen()));
+                        _load();
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(auth.name ?? "", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text(auth.role ?? "", style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text("Edit Profile"),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-                      ).then((_) => _loadBookings());
-                    },
-                  ),
-                ],
+                  ]),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 12),
-            const Text("Booking & Payment History", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_bookings.isEmpty)
-              const Text("No bookings yet.", style: TextStyle(color: Colors.grey))
-            else
-              ..._bookings.map((b) {
-                // Must match the backend's BookingStatus enum order exactly (Booking.cs).
-                const statusNames = ["Pending", "Confirmed", "Cancelled", "Ended", "OnGoing", "Rejected"];
-                final statusLabel = b["status"] is int ? statusNames[b["status"]] : b["status"];
-                final isCancellable = statusLabel == "Pending" || statusLabel == "Confirmed";
-                final canChat = statusLabel == "Confirmed" || statusLabel == "OnGoing" || statusLabel == "Ended";
-                final unread = _unreadChatCounts[b["id"]] ?? 0;
-                // Package name may come back either as the flat "packageName" string or the
-                // nested "package" object, depending on backend version — cover both.
-                final packageName = b["packageName"] ?? b["package"]?["name"] ?? '';
-                final isPaid = b["isPaid"] == true;
-                // AI-planned trips pay AFTER the admin confirms them — show "Pay Now" once
-                // Confirmed but not yet paid.
-                final needsPayment = statusLabel == "Confirmed" && !isPaid;
-                final canReview = statusLabel == "Ended" && !_reviewedBookingIds.contains(b["id"]);
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ListTile(
-                          title: Text("Booking #${b["id"]} — $packageName"),
-                          subtitle: Text("LKR ${b["totalPrice"]} • $statusLabel${isPaid ? ' • Paid' : ''}"),
-                          trailing: Text(
-                            (b["createdAt"] ?? "").toString().substring(0, 10),
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => BookingDetailsScreen(bookingId: b["id"])),
-                            );
-                          },
-                        ),
-                        if (canReview)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton.icon(
-                                  icon: const Icon(Icons.rate_review_outlined, size: 18, color: Colors.amber),
-                                  label: const Text("Leave a Review", style: TextStyle(color: Colors.amber)),
-                                  onPressed: () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => ReviewScreen(bookingId: b["id"])),
-                                    );
-                                    if (mounted) setState(() => _reviewedBookingIds.add(b["id"]));
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (canChat || isCancellable || needsPayment)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                if (needsPayment)
-                                  TextButton.icon(
-                                    icon: const Icon(Icons.payment, size: 18, color: Colors.green),
-                                    label: const Text("Pay Now", style: TextStyle(color: Colors.green)),
-                                    onPressed: () => _payNow(Map<String, dynamic>.from(b)),
-                                  ),
-                                if (canChat)
-                                  TextButton.icon(
-                                    icon: Badge(
-                                      isLabelVisible: unread > 0,
-                                      label: Text("$unread"),
-                                      child: const Icon(Icons.chat_bubble_outline, size: 18, color: Colors.teal),
-                                    ),
-                                    label: const Text("Chat with Guide", style: TextStyle(color: Colors.teal)),
-                                    onPressed: () => _openChat(b["id"], packageName),
-                                  ),
-                                if (isCancellable)
-                                  TextButton.icon(
-                                    icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
-                                    label: const Text("Cancel Booking", style: TextStyle(color: Colors.red)),
-                                    onPressed: () => _confirmCancelBooking(b["id"]),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
+              const SizedBox(height: Space.lg),
+              FadeInUp(
+                index: 1,
+                child: GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.md),
+                  child: Column(children: [
+                    _Detail(Icons.phone_rounded, "Mobile", _profile?["mobileNumber"]?.toString()),
+                    _Detail(Icons.public_rounded, "Country", _profile?["country"]?.toString()),
+                    _Detail(Icons.cake_rounded, "Age", _profile?["age"]?.toString()),
+                    _Detail(Icons.badge_rounded, "Account", _roleLabel(auth.role)),
+                  ]),
+                ),
+              ),
+              if (_isTourist) ...[
+                const SizedBox(height: Space.xxl),
+                Row(children: [
+                  const Expanded(child: SectionHeader("Review history")),
+                  if (_reviews.isNotEmpty) ...[
+                    StatusBadge("${_reviews.length} ${_reviews.length == 1 ? "review" : "reviews"}"),
+                    const SizedBox(width: Space.sm),
+                    RatingStars(avg),
+                  ],
+                ]),
+                const SizedBox(height: Space.sm),
+                if (_reviews.isEmpty)
+                  const GlassCard(
+                    child: EmptyState(
+                      icon: Icons.rate_review_outlined,
+                      title: "No reviews yet",
+                      message: "After a trip ends you can rate your guide, hotel and vehicle — your reviews will show up here.",
                     ),
-                  ),
-                );
-              }),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.logout),
-              label: const Text("Logout"),
-              onPressed: () => context.read<AuthProvider>().logout(),
-            ),
-          ],
+                  )
+                else
+                  for (var i = 0; i < _reviews.length; i++)
+                    Padding(padding: const EdgeInsets.only(bottom: Space.md), child: FadeInUp(index: i, child: _ReviewCard(_reviews[i]))),
+              ],
+              const SizedBox(height: Space.xl),
+              AppButton(label: "Sign out", icon: Icons.logout_rounded, variant: AppButtonVariant.danger, onPressed: _logout),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _Detail extends StatelessWidget {
+  const _Detail(this.icon, this.label, this.value);
+  final IconData icon;
+  final String label;
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = value != null && value!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Space.sm),
+      child: Row(children: [
+        IconTile(icon, size: 38),
+        const SizedBox(width: Space.md),
+        Text(label, style: context.text.bodyMedium!.copyWith(color: context.palette.textSecondary)),
+        const Spacer(),
+        Flexible(child: Text(has ? value! : "—", style: context.text.titleSmall, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+      ]),
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard(this.item);
+  final _ReviewItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = item.review;
+    final rating = ((r["rating"] ?? 0) as num).toInt();
+    final date = (r["createdAt"] ?? "").toString();
+    final comment = (r["comment"] ?? "").toString();
+    return GlassCard(
+      radius: Radii.lg,
+      padding: const EdgeInsets.all(Space.lg),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(item.trip, style: context.text.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          if (date.length >= 10) Text(date.substring(0, 10), style: context.text.bodySmall),
+        ]),
+        const SizedBox(height: Space.xs),
+        Semantics(
+          label: "$rating out of 5 stars",
+          child: Row(children: [
+            for (var i = 1; i <= 5; i++) Icon(i <= rating ? Icons.star_rounded : Icons.star_outline_rounded, size: 20, color: const Color(0xFFF59E0B)),
+          ]),
+        ),
+        if (comment.isNotEmpty) ...[
+          const SizedBox(height: Space.sm),
+          Text(comment, style: context.text.bodyMedium),
+        ],
+        if (r["hotelRating"] != null || r["vehicleRating"] != null) ...[
+          const SizedBox(height: Space.sm),
+          Wrap(spacing: Space.sm, children: [
+            if (r["hotelRating"] != null) StatusBadge("Hotel ${r["hotelRating"]}★", icon: Icons.hotel_rounded),
+            if (r["vehicleRating"] != null) StatusBadge("Vehicle ${r["vehicleRating"]}★", icon: Icons.directions_car_rounded),
+          ]),
+        ],
+      ]),
     );
   }
 }

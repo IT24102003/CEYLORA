@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 
 // Full "tap a booking, see everything" screen — shared by the Tourist (their own
 // bookings), the assigned Guide, and the assigned Vehicle's Owner. What's visible is
@@ -18,8 +20,6 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const _statusNames = ["Pending", "Confirmed", "Cancelled", "Ended", "OnGoing", "Rejected"];
-
   @override
   void initState() {
     super.initState();
@@ -27,40 +27,49 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final d = await _apiService.getBookingDetails(widget.bookingId);
       if (mounted) setState(() => _details = d);
     } catch (e) {
-      if (mounted) setState(() => _error = "Failed to load booking details.");
+      if (mounted) setState(() => _error = "We couldn't load this booking.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Widget _section(String title, List<Widget> children) {
-    if (children.isEmpty) return const SizedBox.shrink();
+  String? _date(dynamic v) {
+    final s = (v ?? "").toString();
+    return s.length >= 10 ? s.substring(0, 10) : null;
+  }
+
+  Widget _section(String title, IconData icon, List<Widget> children) {
+    if (children.every((w) => w is SizedBox)) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: Space.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 8),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _row(String label, String? value) {
-    if (value == null || value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          SizedBox(width: 120, child: Text(label, style: const TextStyle(color: Colors.grey))),
-          Expanded(child: Text(value)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: Space.sm),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: context.palette.textTertiary),
+                const SizedBox(width: Space.sm),
+                Text(title, style: context.text.titleSmall),
+              ],
+            ),
+          ),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
         ],
       ),
     );
@@ -70,17 +79,22 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Booking #${widget.bookingId}")),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : _buildBody(),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: StateView(
+          loading: _isLoading,
+          error: _error,
+          onRetry: _load,
+          skeleton: const SkeletonList(count: 4, leading: false),
+          child: _details == null ? const SizedBox.shrink() : _buildBody(),
+        ),
+      ),
     );
   }
 
   Widget _buildBody() {
     final d = _details!;
-    final statusLabel = d["status"] is int ? _statusNames[d["status"]] : d["status"];
+    final statusLabel = bookingStatusLabel(d["status"]);
     final tourist = d["tourist"];
     final package = d["package"];
     final customTrip = d["customTrip"];
@@ -88,90 +102,99 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
     final vehicle = d["vehicle"];
     final destinations = (package?["destinations"] as List?) ?? [];
     final hotels = (package?["hotels"] as List?) ?? [];
+    final paid = d["isPaid"] == true;
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(d["tripName"] ?? "Trip", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Chip(label: Text(statusLabel ?? "")),
-              const SizedBox(width: 8),
-              Chip(
-                label: Text(d["isPaid"] == true ? "Paid" : "Unpaid"),
-                backgroundColor: d["isPaid"] == true ? Colors.green.shade50 : Colors.red.shade50,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          _section("Trip Info", [
-            _row("Group Size", "${d["groupSize"] ?? 1}"),
-            _row("Total Price", "LKR ${d["totalPrice"]}"),
-            _row("Start Date", (d["plannedStartDate"] ?? "").toString().isNotEmpty ? (d["plannedStartDate"]).toString().substring(0, 10) : null),
-            _row("Trip Started", (d["tripStartedAt"] ?? "").toString().isNotEmpty ? (d["tripStartedAt"]).toString().substring(0, 10) : null),
-            _row("Booked On", (d["createdAt"] ?? "").toString().substring(0, 10)),
-          ]),
-
-          if (package != null)
-            _section("Package", [
-              if ((package["description"] ?? "").toString().isNotEmpty) Text(package["description"]),
-              _row("Duration", "${package["durationDays"]} days"),
-              _row("Base Price", "LKR ${package["basePrice"]} / person"),
-              _row("Max People", "${package["maxPeople"]}"),
-            ]),
-
-          if (customTrip != null)
-            _section("Custom AI Trip", [
-              _row("Objective", customTrip["objective"]),
-              _row("Duration", "${customTrip["durationDays"]} days"),
-            ]),
-
-          if (destinations.isNotEmpty)
-            _section("Destinations", destinations.map<Widget>((dest) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text("Day ${dest["dayNumber"]}: ${dest["name"]} (${dest["region"]})"),
-                )).toList()),
-
-          if (hotels.isNotEmpty)
-            _section("Hotels", hotels.map<Widget>((h) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text("${h["name"]} (${h["region"]}) — LKR ${h["pricePerNight"]}/night"),
-                )).toList()),
-
-          _section("Tourist", [
-            _row("Name", tourist?["name"]),
-            _row("Email", tourist?["email"]),
-            _row("Phone", tourist?["mobileNumber"]),
-          ]),
-
-          if (guide != null)
-            _section("Guide", [
-              _row("Name", guide["name"]),
-              _row("Region", guide["region"]),
-              _row("Phone", guide["mobileNumber"]),
-              _row("Rating", "⭐ ${((guide["rating"] as num?) ?? 0).toStringAsFixed(1)}"),
-            ]),
-
-          if (vehicle != null)
-            _section("Vehicle", [
-              _row("Vehicle", "${vehicle["name"]} (${vehicle["type"]})"),
-              _row("Capacity", "${vehicle["capacity"]} seats"),
-              _row("Rate", "LKR ${vehicle["pricePerKm"]}/km"),
-              _row("Owner", vehicle["ownerName"]),
-              _row("Owner Phone", vehicle["ownerPhone"]),
-            ]),
-
-          if (guide == null && vehicle == null && statusLabel != "Pending")
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text("No guide/vehicle assigned yet.", style: TextStyle(color: Colors.grey)),
+    return ListView(
+      padding: const EdgeInsets.all(Space.lg),
+      children: [
+        Text(d["tripName"] ?? "Trip", style: context.text.headlineSmall),
+        const SizedBox(height: Space.sm),
+        Wrap(
+          spacing: Space.sm,
+          runSpacing: Space.sm,
+          children: [
+            BookingStatusBadge(d["status"]),
+            StatusBadge(
+              paid ? "Paid" : "Unpaid",
+              tone: paid ? Tone.success : Tone.danger,
+              icon: paid ? Icons.check_rounded : Icons.payments_outlined,
             ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: Space.xl),
+        _section("Trip info", Icons.info_outline_rounded, [
+          InfoRow("Group size", "${d["groupSize"] ?? 1}"),
+          InfoRow("Total price", "LKR ${d["totalPrice"]}"),
+          InfoRow("Start date", _date(d["plannedStartDate"])),
+          InfoRow("Trip started", _date(d["tripStartedAt"])),
+          InfoRow("Booked on", _date(d["createdAt"])),
+        ]),
+        if (package != null)
+          _section("Package", Icons.luggage_rounded, [
+            if ((package["description"] ?? "").toString().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Space.sm),
+                child: Text(
+                  package["description"],
+                  style: context.text.bodyMedium!.copyWith(
+                    color: context.palette.textSecondary,
+                  ),
+                ),
+              ),
+            InfoRow("Duration", "${package["durationDays"]} days"),
+            InfoRow("Base price", "LKR ${package["basePrice"]} / person"),
+            InfoRow("Max people", "${package["maxPeople"]}"),
+          ]),
+        if (customTrip != null)
+          _section("Custom trip", Icons.route_rounded, [
+            InfoRow("Objective", customTrip["objective"]),
+            InfoRow("Duration", "${customTrip["durationDays"]} days"),
+          ]),
+        if (destinations.isNotEmpty)
+          _section("Destinations", Icons.place_rounded, [
+            for (final dest in destinations)
+              InfoRow(
+                "Day ${dest["dayNumber"]}",
+                "${dest["name"]} (${dest["region"]})",
+              ),
+          ]),
+        if (hotels.isNotEmpty)
+          _section("Hotels", Icons.hotel_rounded, [
+            for (final h in hotels)
+              InfoRow(
+                h["region"] ?? "",
+                "${h["name"]} — LKR ${h["pricePerNight"]}/night",
+              ),
+          ]),
+        _section("Tourist", Icons.person_outline_rounded, [
+          InfoRow("Name", tourist?["name"]),
+          InfoRow("Email", tourist?["email"]),
+          InfoRow("Phone", tourist?["mobileNumber"]),
+        ]),
+        if (guide != null)
+          _section("Guide", Icons.hiking_rounded, [
+            InfoRow("Name", guide["name"]),
+            InfoRow("Region", guide["region"]),
+            InfoRow("Phone", guide["mobileNumber"]),
+            InfoRow(
+              "Rating",
+              "★ ${((guide["rating"] as num?) ?? 0).toStringAsFixed(1)}",
+            ),
+          ]),
+        if (vehicle != null)
+          _section("Vehicle", Icons.directions_car_rounded, [
+            InfoRow("Vehicle", "${vehicle["name"]} (${vehicle["type"]})"),
+            InfoRow("Capacity", "${vehicle["capacity"]} seats"),
+            InfoRow("Rate", "LKR ${vehicle["pricePerKm"]}/km"),
+            InfoRow("Owner", vehicle["ownerName"]),
+            InfoRow("Owner phone", vehicle["ownerPhone"]),
+          ]),
+        if (guide == null && vehicle == null && statusLabel != "Pending")
+          const InlineAlert(
+            "No guide or vehicle has been assigned yet.",
+            tone: Tone.info,
+          ),
+      ],
     );
   }
 }

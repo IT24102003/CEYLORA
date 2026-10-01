@@ -1,32 +1,51 @@
+import { useId } from "react";
+
 // Small dependency-free SVG charts for the Analytics dashboard.
-// Kept intentionally simple (no charting library) so the project needs no extra npm install.
+// Colours come from CSS tokens so they follow light/dark mode.
 
-export function BarChart({ data, xKey, yKey, label, color = "#00897b", height = 180, formatY }) {
-  if (!data || data.length === 0) return <p style={{ color: "#888" }}>No data yet.</p>;
+// Round the axis maximum up to a "nice" value so the 4 gridline steps are readable numbers.
+function niceMax(v) {
+  const raw = Math.max(v, 4) / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 1.5, 2, 2.5, 3, 4, 5, 10].find((n) => n * mag >= raw) * mag;
+  return step * 4;
+}
 
-  const max = Math.max(1, ...data.map((d) => d[yKey] || 0));
-  const width = Math.max(320, data.length * 28);
-  const barWidth = Math.min(24, (width / data.length) - 6);
+export function BarChart({ data, xKey, yKey, label, color = "var(--c-primary)", height = 200, formatY }) {
+  const titleId = useId();
+  if (!data || data.length === 0) return <p className="muted">No data for this period yet.</p>;
+
+  const W = 640, padL = 34, padB = 24, padT = 8;
+  const max = niceMax(Math.max(1, ...data.map((d) => d[yKey] || 0)));
+  const plotW = W - padL, plotH = height - padB - padT;
+  const slot = plotW / data.length;
+  const barW = Math.max(3, Math.min(22, slot - 4));
+  const labelEvery = Math.ceil(data.length / 8);
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <svg width={width} height={height + 30} role="img" aria-label={label}>
+    <div className="chart">
+      <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} preserveAspectRatio="xMidYMid meet">
+        <title id={titleId}>{label}</title>
+        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+          const y = padT + plotH * (1 - t);
+          return (
+            <g key={t}>
+              <line className="chart__grid" x1={padL} x2={W} y1={y} y2={y} />
+              <text className="chart__axis" x={padL - 8} y={y + 4} textAnchor="end">{Math.round(max * t)}</text>
+            </g>
+          );
+        })}
         {data.map((d, i) => {
-          const barHeight = ((d[yKey] || 0) / max) * height;
-          const x = i * (width / data.length) + 3;
-          const y = height - barHeight;
+          const v = d[yKey] || 0;
+          const h = (v / max) * plotH;
+          const x = padL + i * slot + (slot - barW) / 2;
           return (
             <g key={i}>
-              <title>{`${d[xKey]}: ${formatY ? formatY(d[yKey]) : d[yKey]}`}</title>
-              <rect x={x} y={y} width={barWidth} height={barHeight} fill={color} rx={3} />
-              {data.length <= 14 && (
-                <text
-                  x={x + barWidth / 2}
-                  y={height + 16}
-                  fontSize="10"
-                  textAnchor="middle"
-                  fill="#666"
-                >
+              <rect className="chart__bar" style={{ "--i": i }} x={x} y={padT + plotH - h} width={barW} height={Math.max(h, v > 0 ? 2 : 0)} rx={3} fill={color}>
+                <title>{`${d[xKey]}: ${formatY ? formatY(v) : v}`}</title>
+              </rect>
+              {i % labelEvery === 0 && (
+                <text className="chart__axis" x={x + barW / 2} y={height - 6} textAnchor="middle">
                   {String(d[xKey]).slice(5)}
                 </text>
               )}
@@ -38,28 +57,20 @@ export function BarChart({ data, xKey, yKey, label, color = "#00897b", height = 
   );
 }
 
-export function HorizontalBarList({ data, nameKey, valueKey, color = "#00897b" }) {
-  if (!data || data.length === 0) return <p style={{ color: "#888" }}>No data yet.</p>;
+export function HorizontalBarList({ data, nameKey, valueKey, color = "var(--c-primary)" }) {
+  if (!data || data.length === 0) return <p className="muted">No data yet.</p>;
   const max = Math.max(1, ...data.map((d) => d[valueKey] || 0));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div>
       {data.map((d, i) => (
-        <div key={i}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
-            <span>{d[nameKey]}</span>
-            <span style={{ color: "#666" }}>{d[valueKey]}</span>
+        <div className="hbar" key={i}>
+          <div className="hbar__top">
+            <span className="truncate">{d[nameKey]}</span>
+            <span className="mono muted">{d[valueKey]}</span>
           </div>
-          <div style={{ background: "#eee", borderRadius: 4, height: 10 }}>
-            <div
-              style={{
-                width: `${((d[valueKey] || 0) / max) * 100}%`,
-                background: color,
-                height: "100%",
-                borderRadius: 4,
-                transition: "width 0.3s",
-              }}
-            />
+          <div className="progress" role="img" aria-label={`${d[nameKey]}: ${d[valueKey]}`}>
+            <div className="progress__bar hbar__fill" style={{ width: `${((d[valueKey] || 0) / max) * 100}%`, background: color }} />
           </div>
         </div>
       ))}

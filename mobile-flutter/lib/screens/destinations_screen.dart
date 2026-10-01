@@ -1,7 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/browse.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/ui/ui.dart';
 
 class DestinationsScreen extends StatefulWidget {
   const DestinationsScreen({super.key});
@@ -13,7 +15,6 @@ class DestinationsScreen extends StatefulWidget {
 class _DestinationsScreenState extends State<DestinationsScreen> {
   final ApiService _apiService = ApiService();
   final _searchController = TextEditingController();
-  Timer? _debounce;
 
   List<dynamic> _destinations = [];
   bool _isLoading = true;
@@ -21,8 +22,16 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   String? _categoryFilter;
 
   final Map<int, Map<String, dynamic>?> _weatherCache = {};
+  final Set<int> _weatherRequested = {};
 
-  static const _categories = ["Nature", "Cultural", "Adventure", "Beach", "Wildlife", "Historical"];
+  static const _categories = [
+    "Nature",
+    "Cultural",
+    "Adventure",
+    "Beach",
+    "Wildlife",
+    "Historical",
+  ];
 
   @override
   void initState() {
@@ -32,17 +41,12 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _loadDestinations);
-  }
-
   Future<void> _loadDestinations() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -52,18 +56,66 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
         search: _searchController.text.trim(),
         category: _categoryFilter,
       );
-      setState(() => _destinations = results);
+      if (mounted) setState(() => _destinations = results);
     } catch (e) {
-      setState(() => _error = "Failed to load destinations.");
+      if (mounted) setState(() => _error = "We couldn't load destinations.");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadWeatherFor(int destId, double? lat, double? lon) async {
-    if (lat == null || lon == null || _weatherCache.containsKey(destId)) return;
+    if (lat == null || lon == null || !_weatherRequested.add(destId)) return;
     final weather = await _apiService.getWeather(lat, lon);
     if (mounted) setState(() => _weatherCache[destId] = weather);
+  }
+
+  void _showDetails(dynamic dest) {
+    final w = _weatherCache[dest["id"]];
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if ((dest["imageUrl"] ?? '').toString().isNotEmpty) ...[
+            NetImage(dest["imageUrl"], height: 180, radius: Radii.lg),
+            const SizedBox(height: Space.lg),
+          ],
+          Text(dest["name"] ?? "", style: ctx.text.headlineSmall),
+          const SizedBox(height: Space.sm),
+          Wrap(
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            children: [
+              StatusBadge(
+                dest["region"] ?? "Sri Lanka",
+                tone: Tone.info,
+                icon: Icons.place_rounded,
+              ),
+              StatusBadge(
+                dest["category"] ?? "General",
+                icon: Icons.category_rounded,
+              ),
+              if (w != null && w["available"] == true)
+                StatusBadge(
+                  "${(w["temperature"] as num).toStringAsFixed(0)}°C · ${w["description"]}",
+                  tone: w["isRainy"] == true ? Tone.info : Tone.warning,
+                  icon: w["isRainy"] == true
+                      ? Icons.water_drop_rounded
+                      : Icons.wb_sunny_rounded,
+                ),
+            ],
+          ),
+          const SizedBox(height: Space.lg),
+          Text(
+            dest["description"] ?? "No description available.",
+            style: ctx.text.bodyLarge!.copyWith(
+              color: ctx.palette.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -72,180 +124,75 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       appBar: AppBar(title: const Text("Destinations")),
       body: Column(
         children: [
-          _buildSearchAndFilter(),
+          FilterBar(
+            controller: _searchController,
+            onSearch: _loadDestinations,
+            hint: "Search destinations",
+          ),
+          ChoiceChipRow<String>(
+            options: _categories,
+            value: _categoryFilter,
+            onChanged: (v) {
+              setState(() => _categoryFilter = v);
+              _loadDestinations();
+            },
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadDestinations,
-              child: _buildBody(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchAndFilter() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            decoration: InputDecoration(
-              hintText: "Search destinations...",
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        _loadDestinations();
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 36,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _filterChip("All", _categoryFilter == null, () {
-                  setState(() => _categoryFilter = null);
-                  _loadDestinations();
-                }),
-                ..._categories.map((c) => _filterChip(c, _categoryFilter == c, () {
-                      setState(() => _categoryFilter = _categoryFilter == c ? null : c);
-                      _loadDestinations();
-                    })),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loadDestinations, child: const Text("Retry")),
-          ],
-        ),
-      );
-    }
-
-    if (_destinations.isEmpty) {
-      return const Center(child: Text("No destinations found."));
-    }
-
-    return ListView.builder(
-      itemCount: _destinations.length,
-      itemBuilder: (context, index) {
-        final dest = _destinations[index];
-        final destId = dest["id"];
-        final lat = (dest["latitude"] as num?)?.toDouble();
-        final lon = (dest["longitude"] as num?)?.toDouble();
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.teal.shade100,
-              child: const Icon(Icons.place, color: Colors.teal),
-            ),
-            title: Text(dest["name"] ?? ""),
-            subtitle: Text("${dest["region"] ?? ""} • ${dest["category"] ?? "General"}"),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildWeatherTrailing(destId, lat, lon),
-                const SizedBox(width: 6),
-                FavoriteButton(itemType: "Destination", itemId: destId),
-              ],
-            ),
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                builder: (_) => Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(dest["name"] ?? "",
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(dest["description"] ?? "No description available."),
-                      const SizedBox(height: 8),
-                      Text("Region: ${dest["region"] ?? ""}"),
-                      Text("Category: ${dest["category"] ?? "General"}"),
-                      if (_weatherCache[destId]?["available"] == true) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          "Weather: ${_weatherCache[destId]!["temperature"].toStringAsFixed(0)}°C, "
-                          "${_weatherCache[destId]!["description"]}",
-                        ),
+              child: StateView(
+                loading: _isLoading,
+                error: _error,
+                onRetry: _loadDestinations,
+                isEmpty: _destinations.isEmpty,
+                emptyIcon: Icons.explore_off_rounded,
+                emptyTitle: "No destinations found",
+                emptyMessage: "Try a different search or category.",
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(Space.lg),
+                  itemCount: _destinations.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: Space.md),
+                  itemBuilder: (context, index) {
+                    final dest = _destinations[index];
+                    final destId = dest["id"] as int;
+                    final lat = (dest["latitude"] as num?)?.toDouble();
+                    final lon = (dest["longitude"] as num?)?.toDouble();
+                    if (lat != null && lon != null) {
+                      _loadWeatherFor(destId, lat, lon);
+                    }
+                    final w = _weatherCache[destId];
+                    return ListingCard(
+                      index: index,
+                      title: dest["name"] ?? "",
+                      subtitle: dest["region"] ?? "",
+                      imageUrl: dest["imageUrl"],
+                      fallbackIcon: Icons.landscape_rounded,
+                      onTap: () => _showDetails(dest),
+                      badges: [
+                        StatusBadge(dest["category"] ?? "General"),
+                        if (w != null && w["available"] == true)
+                          StatusBadge(
+                            "${(w["temperature"] as num).toStringAsFixed(0)}°C",
+                            tone: w["isRainy"] == true
+                                ? Tone.info
+                                : Tone.warning,
+                            icon: w["isRainy"] == true
+                                ? Icons.water_drop_rounded
+                                : Icons.wb_sunny_rounded,
+                          ),
                       ],
-                    ],
-                  ),
+                      trailing: FavoriteButton(
+                        itemType: "Destination",
+                        itemId: destId,
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildWeatherTrailing(int destId, double? lat, double? lon) {
-    if (lat == null || lon == null) return const SizedBox.shrink();
-
-    if (!_weatherCache.containsKey(destId)) {
-      // Trigger the fetch once, show a small loading indicator meanwhile
-      _loadWeatherFor(destId, lat, lon);
-      return const SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-
-    final w = _weatherCache[destId];
-    if (w == null || w["available"] != true) return const SizedBox.shrink();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          "${(w["temperature"] as num).toStringAsFixed(0)}°C",
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        ),
-        Text(
-          w["isRainy"] == true ? "🌧️" : "☀️",
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

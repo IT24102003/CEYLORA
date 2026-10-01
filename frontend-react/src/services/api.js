@@ -1,8 +1,16 @@
 import axios from "axios";
 
+export const API_ROOT = "http://localhost:5220";
+
 const api = axios.create({
-  baseURL: "http://localhost:5220/api",
+  baseURL: `${API_ROOT}/api`,
 });
+
+/** Uploaded files come back as relative paths ("/uploads/..."); make them absolute. */
+export const assetUrl = (path) => {
+  if (!path) return null;
+  return /^https?:\/\//i.test(path) ? path : `${API_ROOT}${path.startsWith("/") ? "" : "/"}${path}`;
+};
 
 export const getWeather = (lat, lon) => api.get("/weather/forecast", { params: { lat, lon } });
 

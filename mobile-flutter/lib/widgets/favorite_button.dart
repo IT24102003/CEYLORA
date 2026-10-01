@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:flutter/services.dart';
 
-/// A small heart icon that checks + toggles favorite status for one item.
-/// Reused on the Destinations/Packages/Hotels/Guides/Vehicles browse screens.
+import '../services/api_service.dart';
+import 'ui/ui.dart';
+
+/// A heart that checks + toggles favorite status for one item, with an optimistic
+/// "pop" animation. Reused on the Destinations/Packages/Hotels/Guides/Vehicles browse screens.
 class FavoriteButton extends StatefulWidget {
   final String itemType; // FavoriteItemType.* on the backend: "Destination" | "Package" | "Hotel" | "Guide" | "Vehicle"
   final int itemId;
@@ -32,7 +35,10 @@ class _FavoriteButtonState extends State<FavoriteButton> {
 
   Future<void> _checkStatus() async {
     try {
-      final result = await _apiService.isFavorite(widget.itemType, widget.itemId);
+      final result = await _apiService.isFavorite(
+        widget.itemType,
+        widget.itemId,
+      );
       if (mounted) setState(() => _isFavorite = result);
     } catch (_) {
       if (mounted) setState(() => _isFavorite = false);
@@ -41,17 +47,27 @@ class _FavoriteButtonState extends State<FavoriteButton> {
 
   Future<void> _toggle() async {
     if (_busy || _isFavorite == null) return;
-    setState(() => _busy = true);
     final wasFavorite = _isFavorite!;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _busy = true;
+      _isFavorite = !wasFavorite; // optimistic
+    });
     try {
       if (wasFavorite) {
         await _apiService.removeFavorite(widget.itemType, widget.itemId);
       } else {
         await _apiService.addFavorite(widget.itemType, widget.itemId);
       }
-      if (mounted) setState(() => _isFavorite = !wasFavorite);
     } catch (_) {
-      // keep previous state on failure
+      if (mounted) {
+        setState(() => _isFavorite = wasFavorite); // roll back
+        showToast(
+          context,
+          "Couldn't update favorites. Try again.",
+          tone: Tone.danger,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -59,26 +75,23 @@ class _FavoriteButtonState extends State<FavoriteButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isFavorite == null) {
-      return SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: const Padding(
-          padding: EdgeInsets.all(2),
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-
+    final fav = _isFavorite ?? false;
     return IconButton(
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
-      icon: Icon(
-        _isFavorite! ? Icons.favorite : Icons.favorite_border,
-        color: _isFavorite! ? Colors.red : Colors.grey,
-        size: widget.size,
+      tooltip: fav ? 'Remove from favorites' : 'Add to favorites',
+      onPressed: _isFavorite == null ? null : _toggle,
+      icon: AnimatedSwitcher(
+        duration: Motion.base,
+        transitionBuilder: (child, anim) => ScaleTransition(
+          scale: CurvedAnimation(parent: anim, curve: Motion.spring),
+          child: child,
+        ),
+        child: Icon(
+          fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          key: ValueKey(fav),
+          color: fav ? context.palette.danger : context.palette.textTertiary,
+          size: widget.size,
+        ),
       ),
-      onPressed: _toggle,
     );
   }
 }

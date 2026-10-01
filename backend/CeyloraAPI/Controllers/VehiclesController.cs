@@ -203,6 +203,26 @@ namespace CeyloraAPI.Controllers
             var vehicle = await _context.Vehicles.FindAsync(id);
             if (vehicle == null) return NotFound(new { message = "Vehicle not found." });
 
+            // A vehicle on a live trip can't just disappear — the admin must reassign it first.
+            var hasActiveTrip = await _context.Assignments.AnyAsync(a =>
+                a.VehicleId == id && (a.Status == AssignmentStatus.Confirmed || a.Status == AssignmentStatus.InProgress));
+            if (hasActiveTrip)
+                return Conflict(new { message = "This vehicle is assigned to an active trip. Reassign or finish the trip before deleting." });
+
+            // Rows that point at the vehicle would otherwise violate foreign keys and cause a 500.
+            var pastAssignments = await _context.Assignments.Where(a => a.VehicleId == id).ToListAsync();
+            foreach (var a in pastAssignments) a.VehicleId = null;
+
+            var packages = await _context.Packages.Where(p => p.SuggestedVehicleId == id).ToListAsync();
+            foreach (var p in packages) p.SuggestedVehicleId = null;
+
+            var favorites = await _context.Favorites
+                .Where(f => f.ItemType == FavoriteItemType.Vehicle && f.ItemId == id).ToListAsync();
+            _context.Favorites.RemoveRange(favorites);
+
+            var images = await _context.VehicleImages.Where(i => i.VehicleId == id).ToListAsync();
+            _context.VehicleImages.RemoveRange(images);
+
             _context.Vehicles.Remove(vehicle);
             await _context.SaveChangesAsync();
             return NoContent();

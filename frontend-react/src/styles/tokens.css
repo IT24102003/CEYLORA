@@ -1,0 +1,148 @@
+/* ───────────────────────────────────────────────────────────
+   CEYLORA design tokens — single source of truth for the web UI.
+   Components only ever reference semantic tokens (--c-*, --space-*, …),
+   never raw hex values.
+   ─────────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --brand-50: #f0f9ff;
+  --brand-100: #e0f2fe;
+  --brand-200: #bae6fd;
+  --brand-500: #0ea5e9;
+  --brand-600: #0284c7;
+  --brand-700: #0369a1;
+  --brand-800: #075985;
+  --brand-900: #0c4a6e;
+
+  /* Semantic — light */
+  --c-bg: #6f93bb;
+  --c-surface: #ffffff;
+  --c-surface-2: #5f86b3;
+  --c-surface-hover: #f8fafc;
+  --c-border: #4f77a5;
+  --c-border-strong: #cbd5e1;
+  --c-text: #0b2038;
+  --c-text-2: #1c3149;
+  --c-text-3: #26405c;
+  --c-primary: #2f6aa3;
+  --c-primary-hover: #1f4e82;
+  --c-primary-soft: #D6EAF8;
+  --c-on-primary: #ffffff;
+  --c-accent: #d97706;
+  --c-accent-soft: #fdecc8;
+  --c-ring: #0284c7;
+
+  --c-success: #1f6b52;
+  --c-success-soft: #d7efe6;
+  --c-warning: #b45309;
+  --c-warning-soft: #fef3c7;
+  --c-danger: #b91c1c;
+  --c-danger-soft: #fee2e2;
+  --c-info: #0369a1;
+  --c-info-soft: #e0f2fe;
+  --c-neutral-soft: #f1f5f9;
+
+  --c-sidebar: rgba(31, 78, 130, 0.88);
+  --c-sidebar-2: rgba(255, 255, 255, 0.12);
+  --c-sidebar-text: #b4c9e2;
+  --c-sidebar-text-active: #ffffff;
+  --c-overlay: rgba(11, 27, 43, 0.5);
+
+  /* Type */
+  --font-sans: "Bricolage Grotesque", "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Fira Code", ui-monospace, Consolas, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --fs-3xl: 2.25rem;
+
+  /* Space (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16), 0 4px 10px rgba(15, 23, 42, 0.06);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  /* Layout */
+  --sidebar-w: 248px;
+  --topbar-h: 60px;
+  --bottomnav-h: 64px;
+  --content-max: 1280px;
+}
+
+:root[data-theme="dark"] {
+  --c-bg: #0c2d57;
+  --c-surface: #061930;
+  --c-surface-2: #1a4a82;
+  --c-surface-hover: #14233a;
+  --c-border: #2b5c97;
+  --c-border-strong: #2c4363;
+  --c-text: #e8eef6;
+  --c-text-2: #c3d5e8;
+  --c-text-3: #9fb6d0;
+  --c-primary: #4fb3f0;
+  --c-primary-hover: #7dd3fc;
+  --c-primary-soft: rgba(56, 189, 248, 0.14);
+  --c-on-primary: #05202f;
+  --c-accent: #fb923c;
+  --c-accent-soft: rgba(251, 146, 60, 0.15);
+  --c-ring: #38bdf8;
+
+  --c-success: #4ade80;
+  --c-success-soft: rgba(74, 222, 128, 0.14);
+  --c-warning: #fbbf24;
+  --c-warning-soft: rgba(251, 191, 36, 0.14);
+  --c-danger: #f87171;
+  --c-danger-soft: rgba(248, 113, 113, 0.15);
+  --c-info: #38bdf8;
+  --c-info-soft: rgba(56, 189, 248, 0.14);
+  --c-neutral-soft: rgba(148, 163, 184, 0.14);
+
+  --c-sidebar: rgba(8, 31, 66, 0.92);
+  --c-sidebar-2: #0f1c2b;
+  --c-overlay: rgba(2, 8, 15, 0.65);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --fs-2xl: 1.5rem;
+    --fs-3xl: 1.875rem;
+  }
+}
+
+/* Glass surfaces */
+:root { --glass-bg: rgba(255, 255, 255, 0.62); --glass-border: rgba(255, 255, 255, 0.75); }
+:root[data-theme="dark"] { --glass-bg: rgba(6, 25, 48, 0.72); --glass-border: rgba(255, 255, 255, 0.16); }

@@ -562,6 +562,9 @@ namespace CeyloraAPI.Migrations
                     b.Property<int>("DurationDays")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
 

@@ -269,6 +269,23 @@ namespace CeyloraAPI.Controllers
             var guide = await _context.Guides.FindAsync(id);
             if (guide == null) return NotFound(new { message = "Guide not found." });
 
+            // A guide on a live trip can't just disappear — the admin must reassign it first.
+            var hasActiveTrip = await _context.Assignments.AnyAsync(a =>
+                a.GuideId == id && (a.Status == AssignmentStatus.Confirmed || a.Status == AssignmentStatus.InProgress));
+            if (hasActiveTrip)
+                return Conflict(new { message = "This guide is assigned to an active trip. Reassign or finish the trip before deleting." });
+
+            // Rows that point at the guide would otherwise violate foreign keys and cause a 500.
+            var pastAssignments = await _context.Assignments.Where(a => a.GuideId == id).ToListAsync();
+            foreach (var a in pastAssignments) a.GuideId = null;
+
+            var packages = await _context.Packages.Where(p => p.SuggestedGuideId == id).ToListAsync();
+            foreach (var p in packages) p.SuggestedGuideId = null;
+
+            var favorites = await _context.Favorites
+                .Where(f => f.ItemType == FavoriteItemType.Guide && f.ItemId == id).ToListAsync();
+            _context.Favorites.RemoveRange(favorites);
+
             _context.Guides.Remove(guide);
             await _context.SaveChangesAsync();
             return NoContent();

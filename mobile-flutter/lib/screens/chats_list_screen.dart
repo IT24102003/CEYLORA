@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 import 'chat_screen.dart';
 
-// Reached from the chat icon on the home screen (Tourist) / guide dashboard (Guide).
-// Tourist side: each row is identified by the trip/package name, with the guide's name
-// shown inside the conversation itself. Guide side: each row is identified by the
-// tourist's name.
+// Chats tab. Tourist side: each row is identified by the trip/package name, with the
+// guide's name shown inside the conversation itself. Guide side: each row is identified
+// by the tourist's name.
 class ChatsListScreen extends StatefulWidget {
   const ChatsListScreen({super.key});
 
@@ -28,12 +29,16 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final threads = await _apiService.getChatThreads();
       if (mounted) setState(() => _threads = threads);
     } catch (e) {
-      if (mounted) setState(() => _error = "Failed to load chats.");
+      if (mounted) setState(() => _error = "We couldn't load your chats.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -43,7 +48,11 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
     if (iso == null) return "";
     try {
       final dt = DateTime.parse(iso).toLocal();
-      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+      final now = DateTime.now();
+      if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+        return "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+      }
+      return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}";
     } catch (_) {
       return "";
     }
@@ -57,69 +66,123 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
       appBar: AppBar(title: const Text("Chats")),
       body: RefreshIndicator(
         onRefresh: _load,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(child: Text(_error!))
-                : _threads.isEmpty
-                    ? ListView(
-                        children: const [
-                          SizedBox(height: 100),
-                          Center(
-                            child: Text(
-                              "No chats yet.\nOnce a guide is assigned to your trip, you can chat here.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        itemCount: _threads.length,
-                        itemBuilder: (context, index) {
-                          final t = _threads[index];
-                          final title = isGuide ? (t["otherPartyName"] ?? "Tourist") : (t["tripName"] ?? "Trip");
-                          final unread = (t["unread"] as num?)?.toInt() ?? 0;
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Colors.teal.shade100,
-                              child: Icon(isGuide ? Icons.person : Icons.card_travel, color: Colors.teal),
-                            ),
-                            title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(
-                              t["lastMessage"] ?? "No messages yet",
+        child: StateView(
+          loading: _isLoading,
+          error: _error,
+          onRetry: _load,
+          isEmpty: _threads.isEmpty,
+          emptyIcon: Icons.forum_outlined,
+          emptyTitle: "No chats yet",
+          emptyMessage: isGuide
+              ? "Conversations with your tourists will appear here."
+              : "Once a guide is assigned to your trip, you can chat with them here.",
+          child: ListView.separated(
+            padding: const EdgeInsets.all(Space.lg),
+            itemCount: _threads.length,
+            separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
+            itemBuilder: (context, index) {
+              final t = _threads[index];
+              final title =
+                  (isGuide
+                          ? (t["otherPartyName"] ?? "Tourist")
+                          : (t["tripName"] ?? "Trip"))
+                      .toString();
+              final unread = (t["unread"] as num?)?.toInt() ?? 0;
+              return FadeInUp(
+                index: index,
+                child: GlassTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          bookingId: t["bookingId"],
+                          title: isGuide
+                              ? (t["otherPartyName"] ?? "Chat")
+                              : (t["tripName"] ?? "Chat"),
+                          subtitle: isGuide
+                              ? null
+                              : "Guide: ${t["otherPartyName"] ?? ''}",
+                        ),
+                      ),
+                    ).then((_) => _load());
+                  },
+                  child: Row(
+                    children: [
+                      isGuide
+                          ? AppAvatar(title, size: 48)
+                          : const IconTile(Icons.luggage_rounded, size: 48),
+                      const SizedBox(width: Space.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: context.text.titleSmall!.copyWith(
+                                fontWeight: unread > 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(_formatTime(t["lastMessageAt"]), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                if (unread > 0)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                    child: Text("$unread", style: const TextStyle(color: Colors.white, fontSize: 11)),
-                                  ),
-                              ],
+                            const SizedBox(height: 2),
+                            Text(
+                              t["lastMessage"] ?? "No messages yet",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.text.bodyMedium!.copyWith(
+                                color: unread > 0
+                                    ? context.scheme.onSurface
+                                    : context.palette.textSecondary,
+                              ),
                             ),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ChatScreen(
-                                    bookingId: t["bookingId"],
-                                    title: isGuide ? (t["otherPartyName"] ?? "Chat") : (t["tripName"] ?? "Chat"),
-                                    subtitle: isGuide ? null : "Guide: ${t["otherPartyName"] ?? ''}",
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: Space.sm),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            _formatTime(t["lastMessageAt"]),
+                            style: context.text.bodySmall,
+                          ),
+                          if (unread > 0)
+                            Semantics(
+                              label: "$unread unread",
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: context.scheme.primary,
+                                  borderRadius: BorderRadius.circular(
+                                    Radii.full,
                                   ),
                                 ),
-                              ).then((_) => _load());
-                            },
-                          );
-                        },
+                                child: Text(
+                                  "$unread",
+                                  style: context.text.labelMedium!.copyWith(
+                                    color: context.scheme.onPrimary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

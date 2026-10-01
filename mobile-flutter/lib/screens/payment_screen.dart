@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 import 'review_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -17,106 +19,187 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String? _error;
 
   Future<void> _pay() async {
-    setState(() { _isPaying = true; _error = null; });
+    setState(() {
+      _isPaying = true;
+      _error = null;
+    });
     try {
       await _apiService.createPayment(
         bookingId: widget.booking["id"],
         amount: (widget.booking["totalPrice"] as num).toDouble(),
       );
-      setState(() => _paid = true);
+      if (mounted) setState(() => _paid = true);
     } catch (e) {
-      setState(() => _error = "Payment failed. Please try again.");
+      if (mounted) setState(() => _error = "Payment failed. Please try again.");
     } finally {
-      setState(() => _isPaying = false);
+      if (mounted) setState(() => _isPaying = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Payment")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+        title: Text(_paid ? "Payment" : "Pay for booking"),
+        automaticallyImplyLeading: !_paid,
+      ),
+      body: AnimatedSwitcher(
+        duration: Motion.slow,
+        switchInCurve: Motion.out,
         child: _paid ? _buildSuccess() : _buildPaymentForm(),
       ),
     );
   }
 
   Widget _buildPaymentForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Card(
-          color: Colors.teal.shade50,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+    return SingleChildScrollView(
+      key: const ValueKey('form'),
+      padding: const EdgeInsets.all(Space.xl),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppCard(
+            color: context.palette.primarySoft,
+            padding: const EdgeInsets.all(Space.xl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Booking #${widget.booking["id"]}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text("Amount Due: LKR ${widget.booking["totalPrice"]}",
-                    style: const TextStyle(fontSize: 20)),
+                Text(
+                  "Booking #${widget.booking["id"]}",
+                  style: context.text.bodyMedium,
+                ),
+                const SizedBox(height: Space.xs),
+                Text("Amount due", style: context.text.bodySmall),
+                Text(
+                  "LKR ${widget.booking["totalPrice"]}",
+                  style: context.text.headlineMedium!.copyWith(
+                    color: context.scheme.primary,
+                  ),
+                ),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 20),
-        const Text("Sandbox Payment", style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        const TextField(decoration: InputDecoration(labelText: "Card Number", hintText: "4242 4242 4242 4242")),
-        const SizedBox(height: 12),
-        Row(
-          children: const [
-            Expanded(child: TextField(decoration: InputDecoration(labelText: "Expiry", hintText: "12/28"))),
-            SizedBox(width: 12),
-            Expanded(child: TextField(decoration: InputDecoration(labelText: "CVV", hintText: "123"))),
-          ],
-        ),
-        const SizedBox(height: 24),
-        if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isPaying ? null : _pay,
-            child: _isPaying ? const CircularProgressIndicator() : const Text("Pay Now"),
+          const SizedBox(height: Space.xxl),
+          Row(
+            children: [
+              Expanded(
+                child: Text("Card details", style: context.text.titleMedium),
+              ),
+              const StatusBadge(
+                "Sandbox",
+                tone: Tone.warning,
+                icon: Icons.science_outlined,
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: Space.xs),
+          Text(
+            "This is a test payment — no real money is charged.",
+            style: context.text.bodySmall,
+          ),
+          const SizedBox(height: Space.lg),
+          const AppTextField(
+            label: "Card number",
+            hint: "4242 4242 4242 4242",
+            keyboardType: TextInputType.number,
+            prefixIcon: Icons.credit_card_rounded,
+            autofillHints: [AutofillHints.creditCardNumber],
+          ),
+          const SizedBox(height: Space.lg),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: "Expiry",
+                  hint: "12/28",
+                  keyboardType: TextInputType.datetime,
+                  autofillHints: [AutofillHints.creditCardExpirationDate],
+                ),
+              ),
+              SizedBox(width: Space.md),
+              Expanded(
+                child: AppTextField(
+                  label: "CVV",
+                  hint: "123",
+                  keyboardType: TextInputType.number,
+                  obscure: true,
+                  autofillHints: [AutofillHints.creditCardSecurityCode],
+                ),
+              ),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: Space.lg),
+            InlineAlert(_error!),
+          ],
+          const SizedBox(height: Space.xxl),
+          AppButton(
+            label: "Pay LKR ${widget.booking["totalPrice"]}",
+            icon: Icons.lock_rounded,
+            loading: _isPaying,
+            onPressed: _pay,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildSuccess() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 80),
-          const SizedBox(height: 16),
-          const Text("Payment Successful!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text("We've received your payment for Booking #${widget.booking["id"]}."),
-          const SizedBox(height: 4),
-          const Text(
-            "If this trip hasn't been confirmed yet, our team will assign a guide & vehicle shortly.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          TextButton(
-            onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => ReviewScreen(bookingId: widget.booking["id"])),
-                );
-            },
-            child: const Text("Leave a Review"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-            child: const Text("Back to Home"),
-          ),
-        ],
+      key: const ValueKey('success'),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(Space.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.4, end: 1),
+              duration: Motion.slow,
+              curve: Motion.spring,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: const IconTile(
+                Icons.check_rounded,
+                tone: Tone.success,
+                size: 96,
+              ),
+            ),
+            const SizedBox(height: Space.xl),
+            Text("Payment successful", style: context.text.headlineSmall),
+            const SizedBox(height: Space.sm),
+            Text(
+              "We've received your payment for booking #${widget.booking["id"]}.",
+              textAlign: TextAlign.center,
+              style: context.text.bodyLarge,
+            ),
+            const SizedBox(height: Space.sm),
+            Text(
+              "If this trip hasn't been confirmed yet, our team will assign a guide and vehicle shortly.",
+              textAlign: TextAlign.center,
+              style: context.text.bodyMedium!.copyWith(
+                color: context.palette.textSecondary,
+              ),
+            ),
+            const SizedBox(height: Space.xxl),
+            AppButton(
+              label: "Back to home",
+              onPressed: () =>
+                  Navigator.popUntil(context, (route) => route.isFirst),
+            ),
+            const SizedBox(height: Space.sm),
+            AppButton(
+              label: "Leave a review",
+              variant: AppButtonVariant.ghost,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewScreen(bookingId: widget.booking["id"]),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

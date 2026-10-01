@@ -303,6 +303,25 @@ namespace CeyloraAPI.Controllers
             var booking = await _context.Bookings.FindAsync(id);
             if (booking == null) return NotFound(new { message = "Booking not found." });
 
+            // A trip that's running (or confirmed with a team assigned) shouldn't be deleted — cancel it instead.
+            if (booking.Status == BookingStatus.OnGoing || booking.Status == BookingStatus.Confirmed)
+                return Conflict(new { message = "This booking is confirmed or in progress. Cancel or end it before deleting." });
+
+            // Everything that points at the booking has to go first, otherwise the database rejects the delete (500).
+            _context.Assignments.RemoveRange(_context.Assignments.Where(x => x.BookingId == id));
+            _context.ChatMessages.RemoveRange(_context.ChatMessages.Where(x => x.BookingId == id));
+            _context.HotelBookings.RemoveRange(_context.HotelBookings.Where(x => x.BookingId == id));
+            _context.Reviews.RemoveRange(_context.Reviews.Where(x => x.BookingId == id));
+            _context.Payments.RemoveRange(_context.Payments.Where(x => x.BookingId == id));
+
+            var itineraryIds = await _context.Itineraries.Where(x => x.BookingId == id).Select(x => x.Id).ToListAsync();
+            _context.ItineraryDays.RemoveRange(_context.ItineraryDays.Where(x => itineraryIds.Contains(x.ItineraryId)));
+            _context.Itineraries.RemoveRange(_context.Itineraries.Where(x => x.BookingId == id));
+
+            // Workflows keep their history; they just lose the link.
+            foreach (var wf in await _context.AgentWorkflows.Where(x => x.BookingId == id).ToListAsync())
+                wf.BookingId = null;
+
             _context.Bookings.Remove(booking);
             await _context.SaveChangesAsync();
             return NoContent();

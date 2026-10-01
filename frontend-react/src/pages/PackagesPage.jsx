@@ -1,65 +1,181 @@
-import { useState, useEffect, Fragment } from "react";
-import api from "../services/api";
+import { useState } from "react";
+import { Hotel, MapPin, Map as MapIcon, Package as PackageIcon, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
+import api, { assetUrl } from "../services/api";
+import {
+  Alert, Badge, Button, Card, DataTable, Drawer, Thumb, EmptyState, ErrorState, IconButton, Input, Menu, PageHeader, Select, Switch,
+  TableSkeleton, Textarea, useConfirm, useToast,
+} from "../components/ui";
+import { errorMessage, formatLKR, useAction, useRemote } from "../lib/hooks";
+
+const EMPTY_FORM = { name: "", description: "", imageUrl: "", basePrice: "", durationDays: "", maxPeople: "4", isPublished: false };
+
+// Builds a Google Maps directions link from the package's destinations (already ordered
+// by DayNumber from the backend).
+function routeUrl(pkg) {
+  const points = (pkg.destinations ?? []).filter((d) => d.latitude != null && d.longitude != null);
+  if (points.length === 0) return null;
+  const at = (p) => `${p.latitude},${p.longitude}`;
+  const waypoints = points.length > 2 ? points.slice(1, -1).map(at).join("|") : "";
+  return `https://www.google.com/maps/dir/?api=1&origin=${at(points[0])}&destination=${at(points[points.length - 1])}` +
+    (waypoints ? `&waypoints=${waypoints}` : "") + "&travelmode=driving";
+}
 
 export default function PackagesPage() {
-  const [packages, setPackages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
-    name: "", description: "", basePrice: "", durationDays: "", maxPeople: "4", isPublished: false,
-  });
+  const [editing, setEditing] = useState(null); // null | "new" | package
+  const [managingId, setManagingId] = useState(null);
+  const [busy, act] = useAction();
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  // For the destinations/hotel pickers inside the expanded "Manage Trip Details" panel.
-  // (No guide/vehicle picker here — a package no longer pre-assigns a guide/vehicle.
-  // That's decided per-booking instead, by the admin from the Bookings page's Pending
-  // tab, once a tourist has actually bought the package and paid.)
-  const [allDestinations, setAllDestinations] = useState([]);
-  const [allHotels, setAllHotels] = useState([]);
-
-  const [expandedId, setExpandedId] = useState(null);
-  const [newDestId, setNewDestId] = useState("");
-  const [newDestDay, setNewDestDay] = useState("1");
-  const [newHotelId, setNewHotelId] = useState("");
-
-  const fetchPackages = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get("/packages", { params: { pageSize: 50 } });
-      setPackages(res.data.items);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPickerData = async () => {
-    try {
-      const [destRes, hotelRes] = await Promise.all([
-        api.get("/destinations", { params: { pageSize: 200 } }),
-        api.get("/hotels", { params: { pageSize: 200 } }),
-      ]);
-      setAllDestinations(destRes.data.items ?? []);
-      setAllHotels(hotelRes.data.items ?? []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchPackages();
-    fetchPickerData();
+  const { data: packages, loading, error, reload } = useRemote(async () => (await api.get("/packages", { params: { pageSize: 50 } })).data.items, []);
+  const { data: picker } = useRemote(async () => {
+    const [d, h] = await Promise.all([
+      api.get("/destinations", { params: { pageSize: 200 } }),
+      api.get("/hotels", { params: { pageSize: 200 } }),
+    ]);
+    return { destinations: d.data.items ?? [], hotels: h.data.items ?? [] };
   }, []);
 
-  const resetForm = () => {
-    setForm({ name: "", description: "", basePrice: "", durationDays: "", maxPeople: "4", isPublished: false });
-    setEditingId(null);
-    setShowForm(false);
+  const managing = packages?.find((p) => p.id === managingId);
+
+  const togglePublish = (p) =>
+    act(`pub${p.id}`, async () => {
+      try {
+        await api.put(`/packages/${p.id}`, {
+          name: p.name, description: p.description, imageUrl: p.imageUrl, basePrice: p.basePrice, durationDays: p.durationDays, maxPeople: p.maxPeople,
+          suggestedGuideId: null, suggestedVehicleId: null, isPublished: !p.isPublished,
+        });
+        toast.success(p.isPublished ? `${p.name} moved to drafts.` : `${p.name} is now published.`);
+        reload();
+      } catch (err) {
+        toast.error(errorMessage(err, "Failed to update publish status."));
+      }
+    });
+
+  const handleDelete = async (p) => {
+    const ok = await confirm({ title: `Delete ${p.name}?`, message: "Existing bookings keep their record, but the package disappears from the catalog.", confirmLabel: "Delete package" });
+    if (!ok) return;
+    try {
+      await api.delete(`/packages/${p.id}`);
+      toast.success("Package deleted.");
+      reload();
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to delete package."));
+    }
   };
 
-  const handleSubmit = async (e) => {
+  const viewRoute = (p) => {
+    const url = routeUrl(p);
+    if (!url) { toast.info("This package has no destinations with coordinates yet."); return; }
+    window.open(url, "_blank", "noopener");
+  };
+
+  const columns = [
+    {
+      key: "name", header: "Package", primary: true,
+      render: (p) => (
+        <div className="row">
+          <Thumb src={p.imageUrl} alt={p.name} icon={PackageIcon} />
+          <div style={{ minWidth: 0 }}>
+            <div><strong>{p.name}</strong></div>
+            <div className="cell-sub">{p.durationDays} days · up to {p.maxPeople} people</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: "price", header: "Base price", render: (p) => <span className="mono">{formatLKR(p.basePrice)}</span> },
+    { key: "stops", header: "Stops", render: (p) => `${p.destinations?.length ?? 0} destinations · ${p.hotels?.length ?? 0} hotels` },
+    {
+      key: "published", header: "Published",
+      render: (p) => (
+        <Switch
+          checked={!!p.isPublished}
+          disabled={busy === `pub${p.id}`}
+          onChange={() => togglePublish(p)}
+          label={<Badge tone={p.isPublished ? "success" : "neutral"} dot>{p.isPublished ? "Published" : "Draft"}</Badge>}
+        />
+      ),
+    },
+    {
+      key: "actions", actions: true,
+      render: (p) => (
+        <div className="row" style={{ justifyContent: "flex-end", gap: 4 }}>
+          <Button size="sm" icon={SlidersHorizontal} onClick={() => setManagingId(p.id)}>Manage</Button>
+          <Menu
+            label={`More actions for ${p.name}`}
+            items={[
+              { label: "Edit details", icon: Pencil, onClick: () => setEditing(p) },
+              { label: "View route in Maps", icon: MapIcon, onClick: () => viewRoute(p) },
+              "separator",
+              { label: "Delete package", icon: Trash2, danger: true, onClick: () => handleDelete(p) },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="page">
+      <PageHeader title="Packages" subtitle="Curated trips tourists can book. Publish a package once its route and hotels are set." actions={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} />
+
+      {loading && !packages ? (
+        <Card><TableSkeleton /></Card>
+      ) : error && !packages ? (
+        <Card><ErrorState text="Packages could not be loaded." onRetry={reload} /></Card>
+      ) : packages.length === 0 ? (
+        <Card><EmptyState icon={PackageIcon} title="No packages yet" text="Create a package, then add destinations and hotels to shape the trip." action={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} /></Card>
+      ) : (
+        <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity var(--dur-base)" }}>
+          <DataTable columns={columns} rows={packages} caption="Packages" />
+        </div>
+      )}
+
+      {editing && (
+        <PackageDrawer
+          pkg={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(isEdit) => { setEditing(null); toast.success(isEdit ? "Package updated." : "Package created."); reload(); }}
+        />
+      )}
+
+      {managing && <ManageDrawer pkg={managing} picker={picker} onClose={() => setManagingId(null)} onChanged={reload} onRoute={() => viewRoute(managing)} />}
+    </div>
+  );
+}
+
+function PackageDrawer({ pkg, onClose, onSaved }) {
+  const [form, setForm] = useState(() => pkg ? {
+    name: pkg.name, description: pkg.description || "", imageUrl: pkg.imageUrl || "", basePrice: pkg.basePrice, durationDays: pkg.durationDays,
+    maxPeople: pkg.maxPeople ?? 4, isPublished: pkg.isPublished,
+  } : EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [imgOk, setImgOk] = useState(true);
+  const f = (k) => ({ value: form[k], onChange: (e) => setForm({ ...form, [k]: e.target.value }) });
+
+  const uploadCover = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      const res = await api.post("/packages/upload-image", data);
+      setImgOk(true);
+      setForm((cur) => ({ ...cur, imageUrl: res.data.imageUrl }));
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't upload the photo."));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
     const payload = {
       ...form,
       basePrice: parseFloat(form.basePrice),
@@ -69,259 +185,127 @@ export default function PackagesPage() {
       suggestedVehicleId: null,
     };
     try {
-      if (editingId) {
-        await api.put(`/packages/${editingId}`, payload);
-      } else {
-        await api.post("/packages", payload);
-      }
-      resetForm();
-      fetchPackages();
+      if (pkg) await api.put(`/packages/${pkg.id}`, payload);
+      else await api.post("/packages", payload);
+      onSaved(!!pkg);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to save package.");
+      setError(errorMessage(err, "Failed to save package."));
+      setSubmitting(false);
     }
-  };
-
-  const handleEdit = (pkg) => {
-    setForm({
-      name: pkg.name, description: pkg.description || "",
-      basePrice: pkg.basePrice, durationDays: pkg.durationDays,
-      maxPeople: pkg.maxPeople ?? 4,
-      isPublished: pkg.isPublished,
-    });
-    setEditingId(pkg.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this package?")) return;
-    try {
-      await api.delete(`/packages/${id}`);
-      fetchPackages();
-    } catch (err) {
-      alert("Failed to delete.");
-    }
-  };
-
-  const handleTogglePublish = async (pkg) => {
-    try {
-      await api.put(`/packages/${pkg.id}`, {
-        name: pkg.name, description: pkg.description, basePrice: pkg.basePrice,
-        durationDays: pkg.durationDays, maxPeople: pkg.maxPeople,
-        suggestedGuideId: null, suggestedVehicleId: null,
-        isPublished: !pkg.isPublished,
-      });
-      fetchPackages();
-    } catch (err) {
-      alert("Failed to update publish status.");
-    }
-  };
-
-  // Adding a destination is all it takes to extend the route — the backend returns the
-  // destinations in DayNumber order with coordinates, so there's nothing else to "build".
-  const addDestination = async (pkgId) => {
-    if (!newDestId) return;
-    try {
-      await api.post(`/packages/${pkgId}/destinations`, {
-        destinationId: Number(newDestId),
-        dayNumber: parseInt(newDestDay) || 1,
-      });
-      setNewDestId("");
-      setNewDestDay("1");
-      fetchPackages();
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to add destination.");
-    }
-  };
-
-  const removeDestination = async (pkgId, packageDestinationId) => {
-    try {
-      await api.delete(`/packages/${pkgId}/destinations/${packageDestinationId}`);
-      fetchPackages();
-    } catch (err) {
-      alert("Failed to remove destination.");
-    }
-  };
-
-  const addHotel = async (pkgId) => {
-    if (!newHotelId) return;
-    try {
-      await api.post(`/packages/${pkgId}/hotels`, { hotelId: Number(newHotelId) });
-      setNewHotelId("");
-      fetchPackages();
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to add hotel.");
-    }
-  };
-
-  const removeHotel = async (pkgId, packageHotelId) => {
-    try {
-      await api.delete(`/packages/${pkgId}/hotels/${packageHotelId}`);
-      fetchPackages();
-    } catch (err) {
-      alert("Failed to remove hotel.");
-    }
-  };
-
-  // Builds a Google Maps directions link from the package's destinations (already ordered
-  // by DayNumber from the backend) and opens it in a new tab.
-  const viewRoute = (pkg) => {
-    const points = (pkg.destinations ?? []).filter((d) => d.latitude != null && d.longitude != null);
-    if (points.length === 0) {
-      alert("This package has no destinations with coordinates yet.");
-      return;
-    }
-    const origin = `${points[0].latitude},${points[0].longitude}`;
-    const destination = `${points[points.length - 1].latitude},${points[points.length - 1].longitude}`;
-    const waypoints = points.length > 2
-      ? points.slice(1, -1).map((p) => `${p.latitude},${p.longitude}`).join("|")
-      : "";
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}` +
-      (waypoints ? `&waypoints=${waypoints}` : "") + "&travelmode=driving";
-    window.open(url, "_blank");
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>Packages</h2>
-
-      <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none", marginBottom: 16 }}>
-        + Add Package
-      </button>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 20, borderRadius: 8, maxWidth: 640 }}>
-          <h3 style={{ marginTop: 0 }}>{editingId ? "Edit" : "Add"} Package</h3>
-          <input placeholder="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
-          <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <input type="number" placeholder="Base Price (LKR)" required value={form.basePrice} onChange={(e) => setForm({ ...form, basePrice: e.target.value })} style={{ padding: 8 }} />
-            <input type="number" placeholder="Duration (days)" required value={form.durationDays} onChange={(e) => setForm({ ...form, durationDays: e.target.value })} style={{ padding: 8 }} />
-            <input type="number" placeholder="Max People" required value={form.maxPeople} onChange={(e) => setForm({ ...form, maxPeople: e.target.value })} style={{ padding: 8 }} />
+    <Drawer
+      title={pkg ? "Edit package" : "Add package"}
+      onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button type="submit" form="pkg-form" variant="primary" loading={submitting}>{pkg ? "Save changes" : "Create package"}</Button></>}
+    >
+      <form id="pkg-form" className="form-grid form-grid--3" onSubmit={submit}>
+        {error && <Alert tone="error" className="span-all">{error}</Alert>}
+        <Input label="Name" required className="span-all" {...f("name")} />
+        <Textarea label="Description" className="span-all" {...f("description")} />
+        <div className="span-all stack" style={{ gap: "var(--space-2)" }}>
+          <span className="field__label">Cover photo</span>
+          {form.imageUrl && imgOk && (
+            <img className="thumb thumb--lg" src={assetUrl(form.imageUrl)} alt="Cover preview" onError={() => setImgOk(false)} style={{ objectFit: "cover" }} />
+          )}
+          <div className="row row--wrap">
+            <label className="btn" style={{ cursor: "pointer" }}>
+              {uploading ? "Uploading…" : form.imageUrl ? "Replace photo" : "Upload photo"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploading} onChange={(e) => uploadCover(e.target.files?.[0])} />
+            </label>
+            {form.imageUrl && <Button variant="ghost" onClick={() => setForm({ ...form, imageUrl: "" })}>Remove</Button>}
           </div>
+          <Input label="…or paste an image URL" type="text" inputMode="url" placeholder="https://…" value={form.imageUrl} onChange={(e) => { setImgOk(true); setForm({ ...form, imageUrl: e.target.value }); }} />
+        </div>
+        <Input label="Base price (LKR)" type="number" min="0" required {...f("basePrice")} />
+        <Input label="Duration (days)" type="number" min="1" required {...f("durationDays")} />
+        <Input label="Max people" type="number" min="1" required {...f("maxPeople")} />
+        <div className="span-all">
+          <Switch checked={form.isPublished} onChange={(v) => setForm({ ...form, isPublished: v })} label="Published — visible to tourists" />
+        </div>
+        <Alert className="span-all">
+          Guides and vehicles aren't pre-assigned to a package. Once a tourist books and pays, assign them to that booking from the Bookings page.
+        </Alert>
+      </form>
+    </Drawer>
+  );
+}
 
-          <p style={{ fontSize: 12.5, color: "#888", marginTop: 0, marginBottom: 8 }}>
-            A guide &amp; vehicle are no longer pre-assigned to the package itself — once a
-            tourist buys this package and pays, assign a guide &amp; vehicle to that specific
-            booking from the Bookings page's Pending tab.
-          </p>
+function ManageDrawer({ pkg, picker, onClose, onChanged, onRoute }) {
+  const toast = useToast();
+  const [destId, setDestId] = useState("");
+  const [destDay, setDestDay] = useState("1");
+  const [hotelId, setHotelId] = useState("");
+  const [busy, act] = useAction();
 
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} /> Published
-          </label>
-          <button type="submit" style={{ padding: "8px 16px", marginRight: 8 }}>Save</button>
-          <button type="button" onClick={resetForm} style={{ padding: "8px 16px" }}>Cancel</button>
-        </form>
-      )}
+  const run = (key, fn, failMsg) => act(key, async () => {
+    try { await fn(); onChanged(); } catch (err) { toast.error(errorMessage(err, failMsg)); }
+  });
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
-              <th style={{ padding: 8 }}>Name</th>
-              <th style={{ padding: 8 }}>Price (LKR)</th>
-              <th style={{ padding: 8 }}>Duration</th>
-              <th style={{ padding: 8 }}>Max People</th>
-              <th style={{ padding: 8 }}>Destinations</th>
-              <th style={{ padding: 8 }}>Published</th>
-              <th style={{ padding: 8 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {packages.map((p) => (
-              <Fragment key={p.id}>
-                <tr style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ padding: 8 }}>{p.name}</td>
-                  <td style={{ padding: 8 }}>{p.basePrice}</td>
-                  <td style={{ padding: 8 }}>{p.durationDays} days</td>
-                  <td style={{ padding: 8 }}>{p.maxPeople}</td>
-                  <td style={{ padding: 8 }}>{p.destinations?.length ?? 0}</td>
-                  <td style={{ padding: 8 }}>
-                    <button onClick={() => handleTogglePublish(p)} style={{ background: p.isPublished ? "#2e7d32" : "#999", color: "#fff", border: "none", padding: "4px 10px" }}>
-                      {p.isPublished ? "Published" : "Draft"}
-                    </button>
-                  </td>
-                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>
-                    <button onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={{ marginRight: 8 }}>
-                      {expandedId === p.id ? "Hide" : "Manage"}
-                    </button>
-                    <button onClick={() => viewRoute(p)} style={{ marginRight: 8 }}>View Route</button>
-                    <button onClick={() => handleEdit(p)} style={{ marginRight: 8 }}>Edit</button>
-                    <button onClick={() => handleDelete(p.id)} style={{ color: "red" }}>Delete</button>
-                  </td>
-                </tr>
-                {expandedId === p.id && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 16, background: "#f7f8fa" }}>
-                      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-                        <div style={{ flex: "1 1 300px" }}>
-                          <h4 style={{ marginTop: 0 }}>Destinations &amp; Route</h4>
-                          {p.destinations?.length ? (
-                            <ol style={{ paddingLeft: 18 }}>
-                              {p.destinations.map((d) => (
-                                <li key={d.id} style={{ marginBottom: 4 }}>
-                                  Day {d.dayNumber}: {d.name} ({d.region})
-                                  <button onClick={() => removeDestination(p.id, d.id)} style={{ marginLeft: 8, color: "red", fontSize: 12 }}>
-                                    Remove
-                                  </button>
-                                </li>
-                              ))}
-                            </ol>
-                          ) : (
-                            <p style={{ color: "#888", fontSize: 13 }}>No destinations added yet.</p>
-                          )}
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <select value={newDestId} onChange={(e) => setNewDestId(e.target.value)} style={{ flex: 1, padding: 6 }}>
-                              <option value="">Select destination...</option>
-                              {allDestinations.map((d) => (
-                                <option key={d.id} value={d.id}>{d.name} ({d.region})</option>
-                              ))}
-                            </select>
-                            <input
-                              type="number" min="1" value={newDestDay} onChange={(e) => setNewDestDay(e.target.value)}
-                              style={{ width: 70, padding: 6 }} title="Day number"
-                            />
-                            <button onClick={() => addDestination(p.id)}>Add</button>
-                          </div>
-                        </div>
+  const addDestination = () => !destId ? null : run("addDest", async () => {
+    await api.post(`/packages/${pkg.id}/destinations`, { destinationId: Number(destId), dayNumber: parseInt(destDay) || 1 });
+    setDestId(""); setDestDay("1");
+  }, "Failed to add destination.");
+  const removeDestination = (d) => run(`rd${d.id}`, () => api.delete(`/packages/${pkg.id}/destinations/${d.id}`), "Failed to remove destination.");
+  const addHotel = () => !hotelId ? null : run("addHotel", async () => {
+    await api.post(`/packages/${pkg.id}/hotels`, { hotelId: Number(hotelId) });
+    setHotelId("");
+  }, "Failed to add hotel.");
+  const removeHotel = (h) => run(`rh${h.id}`, () => api.delete(`/packages/${pkg.id}/hotels/${h.id}`), "Failed to remove hotel.");
 
-                        <div style={{ flex: "1 1 260px" }}>
-                          <h4 style={{ marginTop: 0 }}>Hotels</h4>
-                          {p.hotels?.length ? (
-                            <ul style={{ paddingLeft: 18 }}>
-                              {p.hotels.map((h) => (
-                                <li key={h.id} style={{ marginBottom: 4 }}>
-                                  {h.name} ({h.region}) — LKR {h.pricePerNight}/night
-                                  <button onClick={() => removeHotel(p.id, h.id)} style={{ marginLeft: 8, color: "red", fontSize: 12 }}>
-                                    Remove
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p style={{ color: "#888", fontSize: 13 }}>No hotels added yet.</p>
-                          )}
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <select value={newHotelId} onChange={(e) => setNewHotelId(e.target.value)} style={{ flex: 1, padding: 6 }}>
-                              <option value="">Select hotel...</option>
-                              {allHotels.map((h) => (
-                                <option key={h.id} value={h.id}>{h.name} ({h.region})</option>
-                              ))}
-                            </select>
-                            <button onClick={() => addHotel(p.id)}>Add</button>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+  return (
+    <Drawer
+      title={pkg.name}
+      description="Build the route and choose where guests stay."
+      onClose={onClose}
+      footer={<><Button icon={MapIcon} onClick={onRoute}>View route</Button><Button variant="primary" onClick={onClose}>Done</Button></>}
+    >
+      <div className="stack" style={{ gap: "var(--space-6)" }}>
+        <section>
+          <h3 className="section-title"><MapPin size={17} aria-hidden="true" /> Destinations &amp; route</h3>
+          {pkg.destinations?.length ? (
+            <ol className="timeline">
+              {pkg.destinations.map((d) => (
+                <li key={d.id}>
+                  <div className="row row--between">
+                    <div><strong>Day {d.dayNumber}</strong> · {d.name} <span className="muted">({d.region})</span></div>
+                    <IconButton icon={X} label={`Remove ${d.name}`} size="sm" disabled={busy === `rd${d.id}`} onClick={() => removeDestination(d)} />
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="muted" style={{ marginBottom: "var(--space-3)" }}>No destinations added yet.</p>}
+          <div className="row row--wrap" style={{ alignItems: "flex-end" }}>
+            <Select label="Destination" className="search" placeholder="Select destination…" value={destId} onChange={(e) => setDestId(e.target.value)}
+              options={(picker?.destinations ?? []).map((d) => ({ value: d.id, label: `${d.name} (${d.region})` }))} />
+            <Input label="Day" type="number" min="1" value={destDay} onChange={(e) => setDestDay(e.target.value)} style={{ width: 80 }} />
+            <Button icon={Plus} disabled={!destId} loading={busy === "addDest"} onClick={addDestination}>Add</Button>
+          </div>
+        </section>
+
+        <section>
+          <h3 className="section-title"><Hotel size={17} aria-hidden="true" /> Hotels</h3>
+          {pkg.hotels?.length ? (
+            <ul className="stack" style={{ listStyle: "none", padding: 0, margin: "0 0 var(--space-3)", gap: "var(--space-2)" }}>
+              {pkg.hotels.map((h) => (
+                <li key={h.id} className="panel-soft row row--between" style={{ padding: "var(--space-2) var(--space-3)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="truncate"><strong>{h.name}</strong> <span className="muted">({h.region})</span></div>
+                    <div className="cell-sub">{formatLKR(h.pricePerNight)} / night</div>
+                  </div>
+                  <IconButton icon={X} label={`Remove ${h.name}`} size="sm" disabled={busy === `rh${h.id}`} onClick={() => removeHotel(h)} />
+                </li>
+              ))}
+            </ul>
+          ) : <p className="muted" style={{ marginBottom: "var(--space-3)" }}>No hotels added yet.</p>}
+          <div className="row row--wrap" style={{ alignItems: "flex-end" }}>
+            <Select label="Hotel" className="search" placeholder="Select hotel…" value={hotelId} onChange={(e) => setHotelId(e.target.value)}
+              options={(picker?.hotels ?? []).map((h) => ({ value: h.id, label: `${h.name} (${h.region})` }))} />
+            <Button icon={Plus} disabled={!hotelId} loading={busy === "addHotel"} onClick={addHotel}>Add</Button>
+          </div>
+        </section>
+      </div>
+    </Drawer>
   );
 }

@@ -1,291 +1,252 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { CalendarCheck, CreditCard, Trash2, UserCheck, RefreshCw } from "lucide-react";
 import api from "../services/api";
+import {
+  Alert, Badge, Button, DataTable, EmptyState, ErrorState, Menu, Modal, PageHeader, Select, Tabs,
+  TableSkeleton, Card, useConfirm, useToast,
+} from "../components/ui";
+import { errorMessage, formatLKR, useAction, useRemote } from "../lib/hooks";
 
-// 🔥 Must match the backend's BookingStatus enum order exactly (Booking.cs) — the numeric
+// Must match the backend's BookingStatus enum order exactly (Booking.cs) — the numeric
 // `status` value returned by the API is an index into this array.
 const STATUS_OPTIONS = ["Pending", "Confirmed", "Cancelled", "Ended", "OnGoing", "Rejected"];
+const TABS = ["All", "Pending", "Confirmed", "OnGoing", "Ended", "Rejected", "Cancelled"].map((t) => ({ value: t, label: t === "OnGoing" ? "Ongoing" : t }));
 
-// Tabs the admin asked for: Pending / OnGoing / Ended / Rejected / Cancelled, plus an
-// "All" tab. "Confirmed" (assigned but trip not started yet) is folded into OnGoing's
-// neighbourhood but kept filterable via "All" since it's a real status too.
-const TABS = ["All", "Pending", "Confirmed", "OnGoing", "Ended", "Rejected", "Cancelled"];
+const STATUS_TONE = {
+  Pending: "warning", Confirmed: "info", OnGoing: "accent", Ended: "success", Cancelled: "neutral", Rejected: "danger",
+};
+const statusLabel = (s) => (typeof s === "number" ? STATUS_OPTIONS[s] : s);
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("Pending");
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [busy, act] = useAction();
 
-  // Assign guide+vehicle modal state
-  const [assigningBooking, setAssigningBooking] = useState(null); // the booking object
-  const [availableGuides, setAvailableGuides] = useState([]);
-  const [availableVehicles, setAvailableVehicles] = useState([]);
-  const [pickedGuideId, setPickedGuideId] = useState("");
-  const [pickedVehicleId, setPickedVehicleId] = useState("");
-  const [assignError, setAssignError] = useState("");
-  const [assignSubmitting, setAssignSubmitting] = useState(false);
-
-  const fetchBookings = async () => {
-    setLoading(true);
-    try {
-      const params = { pageSize: 50 };
-      if (tab !== "All") params.status = tab;
-      const res = await api.get("/bookings", { params });
-      setBookings(res.data.items);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { data: bookings, loading, error, reload } = useRemote(async () => {
+    const params = { pageSize: 50 };
+    if (tab !== "All") params.status = tab;
+    return (await api.get("/bookings", { params })).data.items;
   }, [tab]);
 
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await api.put(`/bookings/${id}/status`, { status: newStatus });
-      fetchBookings();
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to update status.");
-    }
+  const changeStatus = (b, status) =>
+    act(b.id, async () => {
+      try {
+        await api.put(`/bookings/${b.id}/status`, { status });
+        toast.success(`Booking #${b.id} marked ${status}.`);
+        reload();
+      } catch (err) {
+        toast.error(errorMessage(err, "Failed to update status."));
+      }
+    });
+
+  const remove = async (b) => {
+    const ok = await confirm({
+      title: `Delete booking #${b.id}?`,
+      message: "This permanently removes the booking and cannot be undone.",
+      confirmLabel: "Delete booking",
+    });
+    if (!ok) return;
+    await act(b.id, async () => {
+      try {
+        await api.delete(`/bookings/${b.id}`);
+        toast.success("Booking deleted.");
+        reload();
+      } catch (err) {
+        toast.error(errorMessage(err, "Failed to delete booking."));
+      }
+    });
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this booking?")) return;
+  const [assigning, setAssigning] = useState(null);
+
+  const columns = [
+    {
+      key: "id", header: "Booking", primary: true,
+      render: (b) => (
+        <div>
+          <div className="mono"><strong>#{b.id}</strong></div>
+          <div className="cell-sub">{new Date(b.createdAt).toLocaleDateString()}</div>
+        </div>
+      ),
+    },
+    {
+      key: "tourist", header: "Tourist",
+      render: (b) => (
+        <div>
+          <div>{b.tourist?.name ?? `User #${b.touristId}`}</div>
+          <div className="cell-sub">{b.tourist?.mobileNumber ?? b.tourist?.email ?? ""}</div>
+        </div>
+      ),
+    },
+    {
+      key: "package", header: "Package",
+      render: (b) => (
+        <div>
+          <div>{b.packageName ?? `Package #${b.packageId}`}</div>
+          <div className="cell-sub">{b.groupSize ?? 1} {(b.groupSize ?? 1) === 1 ? "guest" : "guests"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "team", header: "Guide / Vehicle",
+      render: (b) => (b.guideName || b.vehicleName ? (
+        <div><div>{b.guideName ?? "—"}</div><div className="cell-sub">{b.vehicleName ?? "—"}</div></div>
+      ) : <span className="muted">Unassigned</span>),
+    },
+    { key: "cost", header: "Total", render: (b) => <span className="mono">{formatLKR(b.totalPrice)}</span> },
+    {
+      key: "status", header: "Status",
+      render: (b) => {
+        const s = statusLabel(b.status);
+        return (
+          <div className="row row--wrap" style={{ gap: 6, justifyContent: "inherit" }}>
+            <Badge tone={STATUS_TONE[s] ?? "neutral"} dot>{s === "OnGoing" ? "Ongoing" : s}</Badge>
+            <Badge tone={b.isPaid ? "success" : "danger"}>{b.isPaid ? "Paid" : "Unpaid"}</Badge>
+          </div>
+        );
+      },
+    },
+    {
+      key: "actions", actions: true,
+      render: (b) => {
+        const s = statusLabel(b.status);
+        const needsAssignment = s === "Pending" && b.packageId && !b.guideName && !b.vehicleName && b.isPaid;
+        const awaitingPayment = s === "Pending" && b.packageId && !b.isPaid;
+        return (
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            {needsAssignment && <Button size="sm" variant="primary" icon={UserCheck} onClick={() => setAssigning(b)}>Assign &amp; confirm</Button>}
+            {awaitingPayment && <Badge tone="warning" icon={CreditCard}>Awaiting payment</Badge>}
+            <Menu
+              label={`Actions for booking ${b.id}`}
+              items={[
+                { heading: "Change status" },
+                ...STATUS_OPTIONS.filter((x) => x !== s).map((x) => ({ label: x === "OnGoing" ? "Ongoing" : x, icon: RefreshCw, onClick: () => changeStatus(b, x) })),
+                "separator",
+                { label: "Delete booking", icon: Trash2, danger: true, onClick: () => remove(b) },
+              ]}
+            />
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="page">
+      <PageHeader title="Bookings" subtitle="Review incoming trips, assign a guide and vehicle once paid, and track each booking through to completion." />
+
+      <div style={{ marginBottom: "var(--space-4)" }}>
+        <Tabs label="Filter bookings by status" tabs={TABS} value={tab} onChange={setTab} />
+      </div>
+
+      {loading && !bookings ? (
+        <Card><TableSkeleton /></Card>
+      ) : error && !bookings ? (
+        <Card><ErrorState text="Bookings could not be loaded." onRetry={reload} /></Card>
+      ) : bookings.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={CalendarCheck}
+            title={tab === "All" ? "No bookings yet" : `No ${tab === "OnGoing" ? "ongoing" : tab.toLowerCase()} bookings`}
+            text="New bookings from the mobile app will appear here."
+          />
+        </Card>
+      ) : (
+        <div style={{ opacity: loading || busy ? 0.6 : 1, transition: "opacity var(--dur-base)" }}>
+          <DataTable columns={columns} rows={bookings} caption="Bookings" />
+        </div>
+      )}
+
+      {assigning && (
+        <AssignModal
+          booking={assigning}
+          onClose={() => setAssigning(null)}
+          onDone={() => { setAssigning(null); toast.success(`Trip confirmed for booking #${assigning.id}.`); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AssignModal({ booking, onClose, onDone }) {
+  const [guides, setGuides] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [guideId, setGuideId] = useState("");
+  const [vehicleId, setVehicleId] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [g, v] = await Promise.all([
+          api.get("/guides", { params: { available: true, pageSize: 100 } }),
+          api.get("/vehicles", { params: { available: true, pageSize: 100 } }),
+        ]);
+        if (cancelled) return;
+        setGuides(g.data.items ?? []);
+        // Only offer vehicles big enough to seat the whole group.
+        setVehicles((v.data.items ?? []).filter((x) => x.capacity >= (booking.groupSize || 1)));
+      } catch {
+        if (!cancelled) setError("Failed to load available guides/vehicles.");
+      } finally {
+        if (!cancelled) setLoadingOptions(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [booking]);
+
+  const submit = async () => {
+    if (!guideId || !vehicleId) { setError("Please select both a guide and a vehicle."); return; }
+    setSubmitting(true);
+    setError("");
     try {
-      await api.delete(`/bookings/${id}`);
-      fetchBookings();
+      await api.post("/assignments/assign-confirm", { bookingId: booking.id, guideId: Number(guideId), vehicleId: Number(vehicleId) });
+      onDone();
     } catch (err) {
-      alert("Failed to delete.");
-    }
-  };
-
-  const openAssignModal = async (booking) => {
-    setAssigningBooking(booking);
-    setPickedGuideId("");
-    setPickedVehicleId("");
-    setAssignError("");
-    try {
-      const [guidesRes, vehiclesRes] = await Promise.all([
-        api.get("/guides", { params: { available: true, pageSize: 100 } }),
-        api.get("/vehicles", { params: { available: true, pageSize: 100 } }),
-      ]);
-      setAvailableGuides(guidesRes.data.items ?? []);
-      // Only offer vehicles big enough to seat the whole group.
-      const vehicles = (vehiclesRes.data.items ?? []).filter((v) => v.capacity >= (booking.groupSize || 1));
-      setAvailableVehicles(vehicles);
-    } catch (err) {
-      setAssignError("Failed to load available guides/vehicles.");
-    }
-  };
-
-  const closeAssignModal = () => setAssigningBooking(null);
-
-  const submitAssign = async () => {
-    if (!pickedGuideId || !pickedVehicleId) {
-      setAssignError("Please select both a guide and a vehicle.");
-      return;
-    }
-    setAssignSubmitting(true);
-    setAssignError("");
-    try {
-      await api.post("/assignments/assign-confirm", {
-        bookingId: assigningBooking.id,
-        guideId: Number(pickedGuideId),
-        vehicleId: Number(pickedVehicleId),
-      });
-      closeAssignModal();
-      fetchBookings();
-    } catch (err) {
-      setAssignError(err.response?.data?.message || "Failed to assign & confirm.");
-    } finally {
-      setAssignSubmitting(false);
-    }
-  };
-
-  const statusColor = (status) => {
-    const s = STATUS_OPTIONS[status] ?? status;
-    switch (s) {
-      case "Confirmed": return "#2e7d32";
-      case "OnGoing": return "#00897b";
-      case "Ended": return "#1565c0";
-      case "Cancelled": return "#9e9e9e";
-      case "Rejected": return "#c62828";
-      default: return "#ef6c00"; // Pending
+      setError(errorMessage(err, "Failed to assign & confirm."));
+      setSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>Bookings</h2>
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: "8px 16px",
-              border: "1px solid #ccc",
-              borderRadius: 20,
-              background: tab === t ? "#1565c0" : "#fff",
-              color: tab === t ? "#fff" : "#333",
-              cursor: "pointer",
-              fontSize: 13,
-            }}
-          >
-            {t}
-          </button>
-        ))}
+    <Modal
+      title={`Assign team · Booking #${booking.id}`}
+      description={`Group of ${booking.groupSize ?? 1} — only vehicles that seat everyone are listed.`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="success" loading={submitting} disabled={loadingOptions} onClick={submit}>Confirm trip</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {error && <Alert tone="error">{error}</Alert>}
+        <Select
+          label="Guide"
+          required
+          disabled={loadingOptions}
+          placeholder={loadingOptions ? "Loading guides…" : "Select a guide"}
+          value={guideId}
+          onChange={(e) => setGuideId(e.target.value)}
+          hint={!loadingOptions && guides.length === 0 ? "No available guides right now." : undefined}
+          options={guides.map((g) => ({ value: g.id, label: `${g.name ?? `Guide #${g.id}`} — ${g.region} (★ ${Number(g.rating ?? 0).toFixed(1)})` }))}
+        />
+        <Select
+          label="Vehicle"
+          required
+          disabled={loadingOptions}
+          placeholder={loadingOptions ? "Loading vehicles…" : "Select a vehicle"}
+          value={vehicleId}
+          onChange={(e) => setVehicleId(e.target.value)}
+          hint={!loadingOptions && vehicles.length === 0 ? "No available vehicle seats this many people." : undefined}
+          options={vehicles.map((v) => ({ value: v.id, label: `${v.name ?? v.type} — seats ${v.capacity} — ${v.region}` }))}
+        />
       </div>
-
-      {loading ? (
-        <p>Loading...</p>
-      ) : bookings.length === 0 ? (
-        <p>No bookings found.</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
-              <th style={{ padding: 8 }}>ID</th>
-              <th style={{ padding: 8 }}>Tourist</th>
-              <th style={{ padding: 8 }}>Package</th>
-              <th style={{ padding: 8 }}>Group</th>
-              <th style={{ padding: 8 }}>Guide</th>
-              <th style={{ padding: 8 }}>Vehicle</th>
-              <th style={{ padding: 8 }}>Total Cost</th>
-              <th style={{ padding: 8 }}>Paid</th>
-              <th style={{ padding: 8 }}>Status</th>
-              <th style={{ padding: 8 }}>Created</th>
-              <th style={{ padding: 8 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.map((b) => {
-              const statusLabel = typeof b.status === "number" ? STATUS_OPTIONS[b.status] : b.status;
-              const needsAssignment = statusLabel === "Pending" && b.packageId && !b.guideName && !b.vehicleName && b.isPaid;
-              const awaitingPayment = statusLabel === "Pending" && b.packageId && !b.isPaid;
-              return (
-                <tr key={b.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ padding: 8 }}>#{b.id}</td>
-                  <td style={{ padding: 8 }}>
-                    <div>{b.tourist?.name ?? `User #${b.touristId}`}</div>
-                    <div style={{ fontSize: 11, color: "#888" }}>{b.tourist?.mobileNumber ?? b.tourist?.email ?? ""}</div>
-                  </td>
-                  <td style={{ padding: 8 }}>{b.packageName ?? `Package #${b.packageId}`}</td>
-                  <td style={{ padding: 8 }}>{b.groupSize ?? 1}</td>
-                  <td style={{ padding: 8 }}>{b.guideName ?? "—"}</td>
-                  <td style={{ padding: 8 }}>{b.vehicleName ?? "—"}</td>
-                  <td style={{ padding: 8 }}>LKR {Number(b.totalPrice).toLocaleString()}</td>
-                  <td style={{ padding: 8 }}>
-                    <span style={{ background: b.isPaid ? "#2e7d32" : "#c62828", color: "#fff", padding: "3px 10px", borderRadius: 4, fontSize: 12 }}>
-                      {b.isPaid ? "Paid" : "Unpaid"}
-                    </span>
-                  </td>
-                  <td style={{ padding: 8 }}>
-                    <span style={{ background: statusColor(b.status), color: "#fff", padding: "3px 10px", borderRadius: 4, fontSize: 13 }}>
-                      {statusLabel}
-                    </span>
-                  </td>
-                  <td style={{ padding: 8 }}>{new Date(b.createdAt).toLocaleDateString()}</td>
-                  <td style={{ padding: 8 }}>
-                    {needsAssignment && (
-                      <button
-                        onClick={() => openAssignModal(b)}
-                        style={{ marginRight: 8, background: "#2b62d9", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 4, fontSize: 12 }}
-                      >
-                        Assign & Confirm
-                      </button>
-                    )}
-                    {awaitingPayment && (
-                      <span style={{ marginRight: 8, fontSize: 12, color: "#c62828" }}>Awaiting payment</span>
-                    )}
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        if (e.target.value) handleStatusChange(b.id, e.target.value);
-                        e.target.value = "";
-                      }}
-                      style={{ marginRight: 8, padding: 4 }}
-                    >
-                      <option value="">Change status...</option>
-                      {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => handleDelete(b.id)} style={{ color: "red" }}>Delete</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-
-      {assigningBooking && (
-        <div
-          style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-          }}
-          onClick={closeAssignModal}
-        >
-          <div
-            style={{ background: "#fff", borderRadius: 8, padding: 24, width: 420, maxWidth: "90%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0 }}>Assign Guide & Vehicle — Booking #{assigningBooking.id}</h3>
-            <p style={{ color: "#666", fontSize: 13 }}>
-              Group size: {assigningBooking.groupSize ?? 1} — only vehicles that can seat this many are listed.
-            </p>
-
-            {assignError && <p style={{ color: "#c62828", fontSize: 13 }}>{assignError}</p>}
-
-            <label style={{ fontSize: 13, fontWeight: 600 }}>Guide</label>
-            <select
-              value={pickedGuideId}
-              onChange={(e) => setPickedGuideId(e.target.value)}
-              style={{ display: "block", width: "100%", padding: 8, marginTop: 4, marginBottom: 12 }}
-            >
-              <option value="">Select a guide...</option>
-              {availableGuides.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name ?? `Guide #${g.id}`} — {g.region} (⭐ {Number(g.rating ?? 0).toFixed(1)})
-                </option>
-              ))}
-            </select>
-            {availableGuides.length === 0 && <p style={{ fontSize: 12, color: "#999" }}>No available guides right now.</p>}
-
-            <label style={{ fontSize: 13, fontWeight: 600 }}>Vehicle</label>
-            <select
-              value={pickedVehicleId}
-              onChange={(e) => setPickedVehicleId(e.target.value)}
-              style={{ display: "block", width: "100%", padding: 8, marginTop: 4, marginBottom: 16 }}
-            >
-              <option value="">Select a vehicle...</option>
-              {availableVehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name ?? v.type} — seats {v.capacity} — {v.region}
-                </option>
-              ))}
-            </select>
-            {availableVehicles.length === 0 && <p style={{ fontSize: 12, color: "#999" }}>No available vehicle seats this many people.</p>}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={closeAssignModal} style={{ padding: "8px 16px" }}>Cancel</button>
-              <button
-                onClick={submitAssign}
-                disabled={assignSubmitting}
-                style={{ padding: "8px 16px", background: "#2e7d32", color: "#fff", border: "none", borderRadius: 4 }}
-              >
-                {assignSubmitting ? "Confirming..." : "Confirm Trip"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </Modal>
   );
 }

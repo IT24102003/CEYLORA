@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 import 'trip_plan_review_screen.dart';
 
 class TripPlannerScreen extends StatefulWidget {
@@ -15,8 +17,24 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
   bool _isSubmitting = false;
   String? _error;
 
+  static const _ideas = [
+    "3 days in Kandy for 2 people, nature and culture",
+    "A relaxed 5-day beach holiday on the south coast",
+    "Family wildlife safari with a stop in Ella",
+  ];
+
+  @override
+  void dispose() {
+    _objectiveController.dispose();
+    super.dispose();
+  }
+
   Future<void> _generatePlan() async {
-    if (_objectiveController.text.trim().isEmpty) return;
+    final objective = _objectiveController.text.trim();
+    if (objective.isEmpty) {
+      setState(() => _error = "Tell us a little about the trip you'd like.");
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -24,61 +42,112 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
     });
 
     try {
-      final result = await _apiService.previewAgentWorkflow(_objectiveController.text.trim());
+      final result = await _apiService.previewAgentWorkflow(objective);
       if (mounted) {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => TripPlanReviewScreen(
-              objective: _objectiveController.text.trim(),
-              aiResult: result,
-            ),
+            builder: (_) =>
+                TripPlanReviewScreen(objective: objective, aiResult: result),
           ),
         );
       }
     } catch (e) {
-      setState(() => _error = "Failed to generate your trip plan. Please try again.");
+      if (mounted) {
+        setState(
+          () => _error = "We couldn't generate your plan. Please try again.",
+        );
+      }
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Plan My Trip (AI)")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(title: const Text("Plan a trip")),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(Space.xl),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
-            const Text(
-              "Describe your ideal trip and let our AI planner suggest destinations, "
-              "hotels, a guide and a vehicle. You'll be able to review and customize "
-              "everything before it's sent for approval.",
-              style: TextStyle(color: Colors.grey),
+            Row(
+              children: [
+                const IconTile(
+                  Icons.route_rounded,
+                  tone: Tone.accent,
+                  size: 52,
+                ),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Text(
+                    "Where do you want to go?",
+                    style: context.text.headlineSmall,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
+            const SizedBox(height: Space.md),
+            Text(
+              "Our AI planner suggests destinations, hotels, a guide and a vehicle. You can review and customise everything before it's sent for approval.",
+              style: context.text.bodyLarge!.copyWith(
+                color: context.palette.textSecondary,
+              ),
+            ),
+            const SizedBox(height: Space.xxl),
+            AppTextField(
+              label: "Your trip",
               controller: _objectiveController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: "e.g. Plan a 3-day trip to Kandy for 2 people, interested in nature and culture",
-              ),
+              maxLines: 4,
+              enabled: !_isSubmitting,
+              error: _error,
+              hint: "e.g. 3-day trip to Kandy for 2 people, interested in nature and culture",
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.auto_awesome),
-                label: Text(_isSubmitting ? "Generating..." : "Generate Trip Plan"),
-                onPressed: _isSubmitting ? null : _generatePlan,
-              ),
+            const SizedBox(height: Space.lg),
+            Text("Need inspiration?", style: context.text.labelMedium),
+            const SizedBox(height: Space.sm),
+            Wrap(
+              spacing: Space.sm,
+              runSpacing: Space.sm,
+              children: [
+                for (final idea in _ideas)
+                  ActionChip(
+                    label: Text(idea, style: context.text.labelMedium),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () =>
+                              setState(() => _objectiveController.text = idea),
+                  ),
+              ],
             ),
-            const SizedBox(height: 20),
-            if (_isSubmitting) const Center(child: CircularProgressIndicator()),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: Space.xxl),
+            AppButton(
+              label: _isSubmitting
+                  ? "Planning your trip…"
+                  : "Generate trip plan",
+              icon: Icons.route_rounded,
+              loading: _isSubmitting,
+              onPressed: _generatePlan,
+            ),
+            AnimatedSize(
+              duration: Motion.base,
+              curve: Motion.out,
+              child: _isSubmitting
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: Space.lg),
+                      child: Text(
+                        "This can take up to a minute.",
+                        textAlign: TextAlign.center,
+                        style: context.text.bodySmall,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ],
         ),
       ),

@@ -18,4 +18,9 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // The UI kit and context modules intentionally co-locate hooks/helpers with components.
+    files: ['src/components/ui/**', 'src/context/**'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

@@ -1,7 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/browse.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/ui/ui.dart';
 
 class GuidesScreen extends StatefulWidget {
   const GuidesScreen({super.key});
@@ -13,17 +15,12 @@ class GuidesScreen extends StatefulWidget {
 class _GuidesScreenState extends State<GuidesScreen> {
   final ApiService _apiService = ApiService();
   final _searchController = TextEditingController();
-  Timer? _debounce;
 
   List<dynamic> _guides = [];
   bool _isLoading = true;
+  String? _error;
   String? _regionFilter;
   bool _availableOnly = false;
-
-  static const _regions = [
-    "Colombo", "Kandy", "Galle", "Nuwara Eliya", "Ella", "Sigiriya",
-    "Jaffna", "Trincomalee", "Anuradhapura", "Mirissa",
-  ];
 
   @override
   void initState() {
@@ -33,116 +30,154 @@ class _GuidesScreenState extends State<GuidesScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _loadGuides);
-  }
-
   Future<void> _loadGuides() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final results = await _apiService.getGuides(
         search: _searchController.text.trim(),
         region: _regionFilter,
         available: _availableOnly ? true : null,
       );
-      if (!mounted) return;
-      setState(() => _guides = results);
+      if (mounted) setState(() => _guides = results);
     } catch (e) {
-      // ignore
+      if (mounted) setState(() => _error = "We couldn't load guides.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _openFilters() {
+    showFilterSheet(
+      context,
+      onApply: _loadGuides,
+      onReset: () {
+        setState(() {
+          _regionFilter = null;
+          _availableOnly = false;
+        });
+        _loadGuides();
+      },
+      sections: (set) => [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Available only"),
+          value: _availableOnly,
+          onChanged: (v) {
+            _availableOnly = v;
+            set(() {});
+          },
+        ),
+        FilterChips<String>(
+          title: "Region",
+          options: kRegions,
+          value: _regionFilter,
+          onChanged: (v) {
+            _regionFilter = v;
+            set(() {});
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active = (_regionFilter != null ? 1 : 0) + (_availableOnly ? 1 : 0);
     return Scaffold(
       appBar: AppBar(title: const Text("Guides")),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: "Search by region or language...",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                isDense: true,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-            child: Row(
-              children: [
-                DropdownButton<String?>(
-                  value: _regionFilter,
-                  hint: const Text("All regions"),
-                  items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text("All regions")),
-                    ..._regions.map((r) => DropdownMenuItem<String?>(value: r, child: Text(r))),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _regionFilter = val);
-                    _loadGuides();
-                  },
-                ),
-                const SizedBox(width: 16),
-                FilterChip(
-                  label: const Text("Available only"),
-                  selected: _availableOnly,
-                  onSelected: (val) {
-                    setState(() => _availableOnly = val);
-                    _loadGuides();
-                  },
-                ),
-              ],
-            ),
+          FilterBar(
+            controller: _searchController,
+            onSearch: _loadGuides,
+            hint: "Search by region or language",
+            activeFilters: active,
+            onFilters: _openFilters,
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadGuides,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _guides.isEmpty
-                      ? const Center(child: Text("No guides found."))
-                      : ListView.builder(
-                          itemCount: _guides.length,
-                          itemBuilder: (context, index) {
-                            final g = _guides[index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              child: ListTile(
-                                leading: const CircleAvatar(child: Icon(Icons.person)),
-                                title: Text("Guide #${g["id"]}"),
-                                subtitle: Text(
-                                  "${g["region"] ?? ""} • ${g["languages"] ?? ""} • Rating: ${(g["rating"] ?? 0).toStringAsFixed(1)}",
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.circle,
-                                      size: 12,
-                                      color: g["isAvailable"] == true ? Colors.green : Colors.grey,
+              child: StateView(
+                loading: _isLoading,
+                error: _error,
+                onRetry: _loadGuides,
+                isEmpty: _guides.isEmpty,
+                emptyIcon: Icons.person_search_rounded,
+                emptyTitle: "No guides found",
+                emptyMessage: "Try a different search, or clear the filters.",
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(Space.lg),
+                  itemCount: _guides.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: Space.md),
+                  itemBuilder: (context, index) {
+                    final g = _guides[index];
+                    final name = (g["name"] ?? "").toString();
+                    final available = g["isAvailable"] == true;
+                    final languages = (g["languages"] ?? "").toString();
+                    return FadeInUp(
+                      index: index,
+                      child: AppCard(
+                        child: Row(
+                          children: [
+                            AppAvatar(name.isEmpty ? "G" : name, size: 52),
+                            const SizedBox(width: Space.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name.isEmpty ? "Guide #${g["id"]}" : name,
+                                    style: context.text.titleSmall!.copyWith(
+                                      fontSize: 16,
                                     ),
-                                    const SizedBox(width: 6),
-                                    FavoriteButton(itemType: "Guide", itemId: g["id"]),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "${g["region"] ?? ""}${languages.isNotEmpty ? " · $languages" : ""}",
+                                    style: context.text.bodyMedium!.copyWith(
+                                      color: context.palette.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: Space.sm),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      RatingStars(
+                                        ((g["rating"] ?? 0) as num).toDouble(),
+                                      ),
+                                      StatusBadge(
+                                        available ? "Available" : "Unavailable",
+                                        tone: available
+                                            ? Tone.success
+                                            : Tone.neutral,
+                                        icon: available
+                                            ? Icons.check_circle_rounded
+                                            : Icons.pause_circle_rounded,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            );
-                          },
+                            ),
+                            FavoriteButton(itemType: "Guide", itemId: g["id"]),
+                          ],
                         ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],

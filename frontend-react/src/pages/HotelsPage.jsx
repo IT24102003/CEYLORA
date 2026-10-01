@@ -1,47 +1,141 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Hotel, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import api from "../services/api";
+import {
+  Button, Card, DataTable, Drawer, EmptyState, ErrorState, IconButton, Input, PageHeader, SearchInput, Select,
+  TableSkeleton, Textarea, Thumb, Toolbar, Alert, useConfirm, useToast,
+} from "../components/ui";
+import { errorMessage, formatLKR, useRemote } from "../lib/hooks";
+
+const EMPTY_FORM = { name: "", region: "", address: "", starRating: "", pricePerNight: "", roomsAvailable: "", description: "", imageUrl: "" };
+const EMPTY_FILTERS = { search: "", region: "", minStars: "" };
 
 export default function HotelsPage() {
-  const [hotels, setHotels] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
-    name: "", region: "", address: "", starRating: "", pricePerNight: "",
-    roomsAvailable: "", description: "", imageUrl: "",
-  });
-  const [search, setSearch] = useState("");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [minStars, setMinStars] = useState("");
+  const [draft, setDraft] = useState(EMPTY_FILTERS);
+  const [applied, setApplied] = useState(EMPTY_FILTERS);
+  const [editing, setEditing] = useState(null); // null | "new" | hotel
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  const fetchHotels = async () => {
-    setLoading(true);
+  const { data: hotels, loading, error, reload } = useRemote(async () => {
+    const params = { pageSize: 50 };
+    if (applied.search) params.search = applied.search;
+    if (applied.region) params.region = applied.region;
+    if (applied.minStars) params.minStars = applied.minStars;
+    return (await api.get("/hotels", { params })).data.items;
+  }, [applied]);
+
+  const set = (k) => (e) => setDraft((d) => ({ ...d, [k]: e.target.value }));
+  const apply = () => setApplied(draft);
+  const reset = () => { setDraft(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
+  const activeFilters = [draft.region, draft.minStars].filter(Boolean).length;
+  const isFiltered = Object.values(applied).some(Boolean);
+
+  const handleDelete = async (h) => {
+    const ok = await confirm({ title: `Delete ${h.name}?`, message: "The hotel will be removed from the catalog and from any packages using it.", confirmLabel: "Delete hotel" });
+    if (!ok) return;
     try {
-      const params = { pageSize: 50 };
-      if (search) params.search = search;
-      if (regionFilter) params.region = regionFilter;
-      if (minStars) params.minStars = minStars;
-      const res = await api.get("/hotels", { params });
-      setHotels(res.data.items);
+      await api.delete(`/hotels/${h.id}`);
+      toast.success("Hotel deleted.");
+      reload();
     } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      toast.error(errorMessage(err, "Failed to delete hotel."));
     }
   };
 
-  useEffect(() => {
-    fetchHotels();
-  }, []);
+  const columns = [
+    {
+      key: "hotel", header: "Hotel", primary: true,
+      render: (h) => (
+        <div className="row">
+          <Thumb src={h.imageUrl} alt={h.name} icon={Hotel} />
+          <div style={{ minWidth: 0 }}>
+            <div><strong>{h.name}</strong></div>
+            <div className="cell-sub">{h.region}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: "stars", header: "Stars", render: (h) => <span className="row" style={{ gap: 4 }}><Star size={14} fill="currentColor" style={{ color: "var(--c-warning)" }} aria-hidden="true" />{h.starRating}</span> },
+    { key: "price", header: "Per night", render: (h) => <span className="mono">{formatLKR(h.pricePerNight)}</span> },
+    { key: "rooms", header: "Rooms", render: (h) => h.roomsAvailable },
+    {
+      key: "actions", actions: true,
+      render: (h) => (
+        <div className="row" style={{ justifyContent: "flex-end", gap: 4 }}>
+          <Button size="sm" icon={Pencil} onClick={() => setEditing(h)}>Edit</Button>
+          <IconButton icon={Trash2} label={`Delete ${h.name}`} size="sm" variant="soft-danger" onClick={() => handleDelete(h)} />
+        </div>
+      ),
+    },
+  ];
 
-  const resetForm = () => {
-    setForm({ name: "", region: "", address: "", starRating: "", pricePerNight: "", roomsAvailable: "", description: "", imageUrl: "" });
-    setEditingId(null);
-    setShowForm(false);
-  };
+  const filters = (
+    <>
+      <Input aria-label="Region" placeholder="Region" value={draft.region} onChange={set("region")} />
+      <Select
+        aria-label="Minimum stars" value={draft.minStars} onChange={set("minStars")} placeholder="Any star rating"
+        options={[1, 2, 3, 4].map((n) => ({ value: n, label: `${n}★ and up` })).concat({ value: 5, label: "5★ only" })}
+      />
+    </>
+  );
 
-  const handleSubmit = async (e) => {
+  return (
+    <div className="page">
+      <PageHeader title="Hotels" subtitle="Accommodation that can be attached to travel packages." actions={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add hotel</Button>} />
+
+      <Toolbar
+        search={<SearchInput value={draft.search} onChange={(v) => setDraft((d) => ({ ...d, search: v }))} onEnter={apply} placeholder="Search hotels…" />}
+        filters={filters}
+        activeFilters={activeFilters}
+        onApply={apply}
+        onReset={reset}
+      />
+
+      {loading && !hotels ? (
+        <Card><TableSkeleton /></Card>
+      ) : error && !hotels ? (
+        <Card><ErrorState text="Hotels could not be loaded." onRetry={reload} /></Card>
+      ) : hotels.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Hotel}
+            title={isFiltered ? "No hotels match your filters" : "No hotels yet"}
+            text={isFiltered ? "Try removing a filter or searching for something else." : "Add your first hotel so it can be included in packages."}
+            action={isFiltered ? <Button onClick={reset}>Clear filters</Button> : <Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add hotel</Button>}
+          />
+        </Card>
+      ) : (
+        <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity var(--dur-base)" }}>
+          <DataTable columns={columns} rows={hotels} caption="Hotels" />
+        </div>
+      )}
+
+      {editing && (
+        <HotelDrawer
+          hotel={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(isEdit) => { setEditing(null); toast.success(isEdit ? "Hotel updated." : "Hotel added."); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function HotelDrawer({ hotel, onClose, onSaved }) {
+  const [form, setForm] = useState(() => hotel ? {
+    name: hotel.name, region: hotel.region, address: hotel.address || "", starRating: hotel.starRating,
+    pricePerNight: hotel.pricePerNight, roomsAvailable: hotel.roomsAvailable, description: hotel.description || "", imageUrl: hotel.imageUrl || "",
+  } : EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [imgOk, setImgOk] = useState(true);
+  const f = (k) => ({ value: form[k], onChange: (e) => setForm({ ...form, [k]: e.target.value }) });
+
+  const submit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
     const payload = {
       ...form,
       starRating: parseInt(form.starRating),
@@ -49,144 +143,35 @@ export default function HotelsPage() {
       roomsAvailable: parseInt(form.roomsAvailable),
     };
     try {
-      if (editingId) {
-        await api.put(`/hotels/${editingId}`, payload);
-      } else {
-        await api.post("/hotels", payload);
-      }
-      resetForm();
-      fetchHotels();
+      if (hotel) await api.put(`/hotels/${hotel.id}`, payload);
+      else await api.post("/hotels", payload);
+      onSaved(!!hotel);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to save hotel.");
-    }
-  };
-
-  const handleEdit = (hotel) => {
-    setForm({
-      name: hotel.name, region: hotel.region, address: hotel.address || "",
-      starRating: hotel.starRating, pricePerNight: hotel.pricePerNight,
-      roomsAvailable: hotel.roomsAvailable, description: hotel.description || "",
-      imageUrl: hotel.imageUrl || "",
-    });
-    setEditingId(hotel.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this hotel?")) return;
-    try {
-      await api.delete(`/hotels/${id}`);
-      fetchHotels();
-    } catch (err) {
-      alert("Failed to delete.");
+      setError(errorMessage(err, "Failed to save hotel."));
+      setSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>Hotels</h2>
-
-      <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input
-          placeholder="Search hotels..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 8, flex: 1, minWidth: 160 }}
-        />
-        <input
-          placeholder="Filter by region..."
-          value={regionFilter}
-          onChange={(e) => setRegionFilter(e.target.value)}
-          style={{ padding: 8, width: 160 }}
-        />
-        <select value={minStars} onChange={(e) => setMinStars(e.target.value)} style={{ padding: 8 }}>
-          <option value="">Any star rating</option>
-          <option value="1">1★ and up</option>
-          <option value="2">2★ and up</option>
-          <option value="3">3★ and up</option>
-          <option value="4">4★ and up</option>
-          <option value="5">5★ only</option>
-        </select>
-        <button onClick={fetchHotels} style={{ padding: "8px 16px" }}>Search</button>
-        <button onClick={() => { resetForm(); setShowForm(true); }} style={{ padding: "8px 16px", background: "#1565c0", color: "#fff", border: "none" }}>
-          + Add Hotel
-        </button>
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 20, borderRadius: 8, maxWidth: 640 }}>
-          <h3 style={{ marginTop: 0 }}>{editingId ? "Edit" : "Add"} Hotel</h3>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <input placeholder="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ padding: 8 }} />
-            <input placeholder="Region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} style={{ padding: 8 }} />
-          </div>
-
-          <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <input type="number" min="1" max="5" placeholder="Star Rating (1-5)" required value={form.starRating} onChange={(e) => setForm({ ...form, starRating: e.target.value })} style={{ padding: 8 }} />
-            <input type="number" placeholder="Price/Night (LKR)" required value={form.pricePerNight} onChange={(e) => setForm({ ...form, pricePerNight: e.target.value })} style={{ padding: 8 }} />
-            <input type="number" placeholder="Rooms Available" required value={form.roomsAvailable} onChange={(e) => setForm({ ...form, roomsAvailable: e.target.value })} style={{ padding: 8 }} />
-          </div>
-
-          <input placeholder="Image URL" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
-          {form.imageUrl && (
-            <img
-              src={form.imageUrl}
-              alt="Preview"
-              style={{ width: 160, height: 100, objectFit: "cover", borderRadius: 6, marginBottom: 8, display: "block" }}
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
-          )}
-
-          <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ display: "block", width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }} />
-          <button type="submit" style={{ padding: "8px 16px", marginRight: 8 }}>Save</button>
-          <button type="button" onClick={resetForm} style={{ padding: "8px 16px" }}>Cancel</button>
-        </form>
-      )}
-
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
-              <th style={{ padding: 8 }}>Photo</th>
-              <th style={{ padding: 8 }}>Name</th>
-              <th style={{ padding: 8 }}>Region</th>
-              <th style={{ padding: 8 }}>Stars</th>
-              <th style={{ padding: 8 }}>Price/Night</th>
-              <th style={{ padding: 8 }}>Rooms</th>
-              <th style={{ padding: 8 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hotels.map((h) => (
-              <tr key={h.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>
-                  {h.imageUrl ? (
-                    <img src={h.imageUrl} alt={h.name} style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 4 }} />
-                  ) : (
-                    <div style={{ width: 64, height: 48, background: "#eee", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#999" }}>
-                      No photo
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: 8 }}>{h.name}</td>
-                <td style={{ padding: 8 }}>{h.region}</td>
-                <td style={{ padding: 8 }}>{"★".repeat(h.starRating)}</td>
-                <td style={{ padding: 8 }}>{h.pricePerNight}</td>
-                <td style={{ padding: 8 }}>{h.roomsAvailable}</td>
-                <td style={{ padding: 8 }}>
-                  <button onClick={() => handleEdit(h)} style={{ marginRight: 8 }}>Edit</button>
-                  <button onClick={() => handleDelete(h.id)} style={{ color: "red" }}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <Drawer
+      title={hotel ? "Edit hotel" : "Add hotel"}
+      onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button type="submit" form="hotel-form" variant="primary" loading={submitting}>{hotel ? "Save changes" : "Add hotel"}</Button></>}
+    >
+      <form id="hotel-form" className="form-grid" onSubmit={submit}>
+        {error && <Alert tone="error" className="span-all">{error}</Alert>}
+        <Input label="Name" required {...f("name")} />
+        <Input label="Region" required {...f("region")} />
+        <Input label="Address" className="span-all" {...f("address")} />
+        <Input label="Star rating" type="number" min="1" max="5" required hint="1 – 5" {...f("starRating")} />
+        <Input label="Price per night (LKR)" type="number" min="0" required {...f("pricePerNight")} />
+        <Input label="Rooms available" type="number" min="0" required {...f("roomsAvailable")} />
+        <Input label="Image URL" type="url" inputMode="url" className="span-all" placeholder="https://…" {...f("imageUrl")} onChange={(e) => { setImgOk(true); setForm({ ...form, imageUrl: e.target.value }); }} />
+        {form.imageUrl && imgOk && (
+          <img className="thumb thumb--lg span-all" src={form.imageUrl} alt="Hotel preview" onError={() => setImgOk(false)} style={{ gridColumn: "1 / -1", objectFit: "cover" }} />
+        )}
+        <Textarea label="Description" className="span-all" {...f("description")} />
+      </form>
+    </Drawer>
   );
 }

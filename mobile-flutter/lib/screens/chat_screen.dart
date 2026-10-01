@@ -1,13 +1,22 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 
 class ChatScreen extends StatefulWidget {
   final int bookingId;
-  final String title; // e.g. trip/package name (tourist side) or tourist name (guide side)
+  final String
+  title; // e.g. trip/package name (tourist side) or tourist name (guide side)
   final String? subtitle; // e.g. "Guide: <name>" shown inside the conversation
 
-  const ChatScreen({super.key, required this.bookingId, required this.title, this.subtitle});
+  const ChatScreen({
+    super.key,
+    required this.bookingId,
+    required this.title,
+    this.subtitle,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -29,7 +38,10 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _loadMessages(showSpinner: true);
     // Simple polling every 5 seconds — no real-time server needed.
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadMessages());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _loadMessages(),
+    );
   }
 
   @override
@@ -45,8 +57,10 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final messages = await _apiService.getChatMessages(widget.bookingId);
       if (!mounted) return;
-      final wasAtBottom = !_scrollController.hasClients ||
-          _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 40;
+      final wasAtBottom =
+          !_scrollController.hasClients ||
+          _scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 40;
       setState(() {
         _messages = messages;
         _error = null;
@@ -55,7 +69,9 @@ class _ChatScreenState extends State<ChatScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
     } catch (e) {
-      if (mounted && showSpinner) setState(() => _error = e.toString().replaceFirst("Exception: ", ""));
+      if (mounted && showSpinner) {
+        setState(() => _error = e.toString().replaceFirst("Exception: ", ""));
+      }
     } finally {
       if (mounted && showSpinner) setState(() => _isLoading = false);
     }
@@ -65,8 +81,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+      duration: Motion.base,
+      curve: Motion.out,
     );
   }
 
@@ -82,8 +98,10 @@ class _ChatScreenState extends State<ChatScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to send: ${e.toString().replaceFirst("Exception: ", "")}")),
+        showToast(
+          context,
+          "Message not sent. ${e.toString().replaceFirst("Exception: ", "")}",
+          tone: Tone.danger,
         );
         _messageController.text = text;
       }
@@ -96,16 +114,20 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
-        bottom: widget.subtitle == null
-            ? null
-            : PreferredSize(
-                preferredSize: const Size.fromHeight(20),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(widget.subtitle!, style: const TextStyle(fontSize: 12.5)),
-                ),
-              ),
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.title,
+              style: context.text.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (widget.subtitle != null)
+              Text(widget.subtitle!, style: context.text.bodySmall),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -117,72 +139,85 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-        ),
-      );
-    }
-
-    if (_messages.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            "No messages yet. Say hello! 👋",
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(12),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        final m = _messages[index];
-        final isMine = m["isMine"] == true;
-        return Align(
-          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isMine ? Colors.teal : Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!isMine)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      m["senderRole"] ?? "",
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700),
+    return StateView(
+      loading: _isLoading,
+      error: _error,
+      onRetry: () => _loadMessages(showSpinner: true),
+      isEmpty: _messages.isEmpty,
+      emptyIcon: Icons.waving_hand_rounded,
+      emptyTitle: "Say hello",
+      emptyMessage:
+          "Start the conversation — messages are delivered within seconds.",
+      skeleton: const Center(child: CircularProgressIndicator()),
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(Space.lg),
+        itemCount: _messages.length,
+        itemBuilder: (context, index) {
+          final m = _messages[index];
+          final isMine = m["isMine"] == true;
+          final p = context.palette;
+          return Align(
+            alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.78,
+              ),
+              margin: const EdgeInsets.symmetric(vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isMine ? context.scheme.primary : context.scheme.surface,
+                border: isMine ? null : Border.all(color: p.border),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(Radii.lg),
+                  topRight: const Radius.circular(Radii.lg),
+                  bottomLeft: Radius.circular(isMine ? Radii.lg : 4),
+                  bottomRight: Radius.circular(isMine ? 4 : Radii.lg),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isMine)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        m["senderRole"] ?? "",
+                        style: context.text.labelMedium!.copyWith(
+                          color: context.scheme.primary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  Text(
+                    m["message"] ?? "",
+                    style: context.text.bodyLarge!.copyWith(
+                      fontSize: 15,
+                      color: isMine
+                          ? context.scheme.onPrimary
+                          : context.scheme.onSurface,
                     ),
                   ),
-                Text(
-                  m["message"] ?? "",
-                  style: TextStyle(color: isMine ? Colors.white : Colors.black87),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatTime(m["sentAt"]),
-                  style: TextStyle(fontSize: 10, color: isMine ? Colors.white70 : Colors.grey),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _formatTime(m["sentAt"]),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: isMine
+                            ? context.scheme.onPrimary.withValues(alpha: 0.75)
+                            : p.textTertiary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -190,47 +225,94 @@ class _ChatScreenState extends State<ChatScreen> {
     if (iso == null) return "";
     try {
       final dt = DateTime.parse(iso).toLocal();
-      final hh = dt.hour.toString().padLeft(2, '0');
-      final mm = dt.minute.toString().padLeft(2, '0');
-      return "$hh:$mm";
+      return "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
     } catch (_) {
       return "";
     }
   }
 
   Widget _buildComposer() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                minLines: 1,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: "Type a message...",
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                ),
-                onSubmitted: (_) => _send(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _isSending
-                ? const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.send, color: Colors.teal),
-                    onPressed: _send,
+    final canSend = _messageController.text.trim().isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: context.scheme.surface,
+        border: Border(top: BorderSide(color: context.palette.border)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            Space.md,
+            Space.sm,
+            Space.md,
+            Space.sm,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  minLines: 1,
+                  maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: "Type a message",
+                    fillColor: context.palette.surface2,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Radii.full),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Radii.full),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Radii.full),
+                      borderSide: BorderSide(
+                        color: context.scheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
                   ),
-          ],
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              const SizedBox(width: Space.sm),
+              AnimatedContainer(
+                duration: Motion.fast,
+                decoration: BoxDecoration(
+                  color: canSend
+                      ? context.scheme.primary
+                      : context.palette.surface2,
+                  shape: BoxShape.circle,
+                ),
+                child: _isSending
+                    ? const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Padding(
+                          padding: EdgeInsets.all(14),
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                      )
+                    : IconButton(
+                        tooltip: "Send message",
+                        icon: Icon(
+                          Icons.arrow_upward_rounded,
+                          color: canSend
+                              ? context.scheme.onPrimary
+                              : context.palette.textTertiary,
+                        ),
+                        onPressed: canSend ? _send : null,
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

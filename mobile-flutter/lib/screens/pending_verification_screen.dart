@@ -1,29 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
-import '../services/api_service.dart';
+import '../widgets/ui/ui.dart';
 
 // Shown when a logged-in Guide/VehicleOwner account hasn't been approved by an Admin yet.
 class PendingVerificationScreen extends StatefulWidget {
   const PendingVerificationScreen({super.key});
 
   @override
-  State<PendingVerificationScreen> createState() => _PendingVerificationScreenState();
+  State<PendingVerificationScreen> createState() =>
+      _PendingVerificationScreenState();
 }
 
 class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
-  final ApiService _apiService = ApiService();
   bool _isChecking = false;
 
   Future<void> _checkAgain() async {
     setState(() => _isChecking = true);
     try {
-      final stillPending = await context.read<AuthProvider>().refreshVerificationStatus();
-      if (mounted && !stillPending) {
-        // AuthWrapper will now route to the real dashboard automatically.
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Still under review. Please check back later.")),
+      final stillPending = await context
+          .read<AuthProvider>()
+          .refreshVerificationStatus();
+      // When no longer pending, AuthWrapper routes to the real dashboard automatically.
+      if (mounted && stillPending) {
+        showToast(
+          context,
+          "Still under review. Please check back later.",
+          tone: Tone.warning,
         );
       }
     } finally {
@@ -36,40 +40,44 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Application Pending")),
+      appBar: AppBar(title: const Text("Application pending")),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Space.xxxl),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.hourglass_top, size: 72, color: Colors.orange),
-              const SizedBox(height: 20),
+              const IconTile(
+                Icons.hourglass_top_rounded,
+                tone: Tone.warning,
+                size: 88,
+              ),
+              const SizedBox(height: Space.xl),
               Text(
                 "Hi ${auth.name ?? ''}, your application is under review",
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: context.text.titleLarge,
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
-              const Text(
-                "Our admin team is checking your submitted details and documents. "
-                "You'll get a notification once your account is verified — this usually "
-                "doesn't take long.",
+              const SizedBox(height: Space.md),
+              Text(
+                "Our admin team is checking your submitted details and documents. You'll get a notification once your account is verified — this usually doesn't take long.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: context.text.bodyLarge!.copyWith(
+                  color: context.palette.textSecondary,
+                ),
               ),
-              const SizedBox(height: 28),
-              ElevatedButton.icon(
-                icon: _isChecking
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.refresh),
-                label: const Text("Check Again"),
-                onPressed: _isChecking ? null : _checkAgain,
+              const SizedBox(height: Space.xxl),
+              AppButton(
+                label: "Check again",
+                icon: Icons.refresh_rounded,
+                loading: _isChecking,
+                onPressed: _checkAgain,
               ),
-              const SizedBox(height: 12),
-              TextButton(
+              const SizedBox(height: Space.sm),
+              AppButton(
+                label: "Sign out",
+                variant: AppButtonVariant.ghost,
                 onPressed: () => context.read<AuthProvider>().logout(),
-                child: const Text("Logout"),
               ),
             ],
           ),

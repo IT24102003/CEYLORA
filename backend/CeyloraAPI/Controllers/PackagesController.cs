@@ -14,11 +14,13 @@ namespace CeyloraAPI.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IPricingService _pricingService;
+        private readonly IWebHostEnvironment _env;
 
-        public PackagesController(AppDbContext context, IPricingService pricingService)
+        public PackagesController(AppDbContext context, IPricingService pricingService, IWebHostEnvironment env)
         {
             _context = context;
             _pricingService = pricingService;
+            _env = env;
         }
 
         // GET: api/packages?published=true&search=beach&page=1&pageSize=10
@@ -91,6 +93,7 @@ namespace CeyloraAPI.Controllers
             p.Id,
             p.Name,
             p.Description,
+            p.ImageUrl,
             p.BasePrice,
             p.DurationDays,
             p.MaxPeople,
@@ -133,6 +136,7 @@ namespace CeyloraAPI.Controllers
             {
                 Name = dto.Name,
                 Description = dto.Description,
+                ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim(),
                 BasePrice = dto.BasePrice,
                 DurationDays = dto.DurationDays,
                 MaxPeople = dto.MaxPeople > 0 ? dto.MaxPeople : 4,
@@ -148,6 +152,29 @@ namespace CeyloraAPI.Controllers
             return CreatedAtAction(nameof(GetById), new { id = package.Id }, package);
         }
 
+        // POST: api/packages/upload-image (Admin only) — saves a cover photo and returns its URL;
+        // the admin panel then stores that URL on the package via create/update.
+        [HttpPost("upload-image")]
+        [Authorize(Roles = "Admin")]
+        [RequestSizeLimit(10_000_000)]
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0) return BadRequest(new { message = "No file uploaded." });
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+                return BadRequest(new { message = "Only JPG, PNG or WebP images are allowed." });
+
+            var folder = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "packages");
+            Directory.CreateDirectory(folder);
+            var fileName = $"package-{Guid.NewGuid()}{ext}";
+            using (var stream = new FileStream(Path.Combine(folder, fileName), FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+            return Ok(new { imageUrl = $"/uploads/packages/{fileName}" });
+        }
+
         // PUT: api/packages/5 (Admin only)
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
@@ -158,6 +185,7 @@ namespace CeyloraAPI.Controllers
 
             package.Name = dto.Name;
             package.Description = dto.Description;
+            package.ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim();
             package.BasePrice = dto.BasePrice;
             package.DurationDays = dto.DurationDays;
             package.MaxPeople = dto.MaxPeople > 0 ? dto.MaxPeople : 4;

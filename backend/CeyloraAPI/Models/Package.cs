@@ -5,6 +5,9 @@ namespace CeyloraAPI.Models
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
+
+        // Cover photo: an absolute URL or a relative "/uploads/..." path served by this API.
+        public string? ImageUrl { get; set; }
         public decimal BasePrice { get; set; }
         public int DurationDays { get; set; }
 

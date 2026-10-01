@@ -1,20 +1,20 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 import api from "../services/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem("ceylora_token");
-    const savedUser = localStorage.getItem("ceylora_user");
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+  // Restore the session synchronously so protected routes never flash the login page.
+  const [user, setUser] = useState(() => {
+    try {
+      const token = localStorage.getItem("ceylora_token");
+      const savedUser = localStorage.getItem("ceylora_user");
+      return token && savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
     }
-    setLoading(false);
-  }, []);
+  });
+  const loading = false;
 
   const login = async (email, password) => {
     const response = await api.post("/auth/login", { email, password });

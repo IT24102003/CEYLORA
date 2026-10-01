@@ -1,10 +1,13 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/registration_widgets.dart';
+import '../widgets/ui/ui.dart';
 import 'home_screen.dart';
 
 class GuideRegisterScreen extends StatefulWidget {
@@ -16,6 +19,7 @@ class GuideRegisterScreen extends StatefulWidget {
 
 class _GuideRegisterScreenState extends State<GuideRegisterScreen> {
   final ApiService _apiService = ApiService();
+  final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -26,46 +30,65 @@ class _GuideRegisterScreenState extends State<GuideRegisterScreen> {
   final _languagesController = TextEditingController();
 
   String? _mobileNumber;
-  String _country = "Sri Lanka"; // taken from the phone field's selected country code
+  String _country =
+      "Sri Lanka"; // taken from the phone field's selected country code
 
   Uint8List? _tourismIdPhotoBytes;
   String? _tourismIdPhotoName;
   bool _isSubmitting = false;
   String? _error;
+  String? _phoneError;
+  String? _photoError;
+
+  @override
+  void dispose() {
+    for (final c in [
+      _nameController,
+      _emailController,
+      _passwordController,
+      _ageController,
+      _regionController,
+      _nicController,
+      _languagesController,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _pickTourismIdPhoto() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1200);
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1200,
+    );
     if (picked != null) {
       final bytes = await picked.readAsBytes();
+      if (!mounted) return;
       setState(() {
         _tourismIdPhotoBytes = bytes;
         _tourismIdPhotoName = picked.name;
+        _photoError = null;
       });
     }
   }
 
   Future<void> _submit() async {
-    if (_nameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty ||
-        _ageController.text.trim().isEmpty ||
-        _regionController.text.trim().isEmpty ||
-        _nicController.text.trim().isEmpty ||
-        _mobileNumber == null ||
-        _mobileNumber!.trim().isEmpty) {
-      setState(() => _error = "Please fill in all required fields.");
-      return;
-    }
-    if (_tourismIdPhotoBytes == null) {
-      setState(() => _error = "Please upload a photo of your Tourism ID.");
-      return;
-    }
-
     setState(() {
-      _isSubmitting = true;
       _error = null;
+      _phoneError = (_mobileNumber ?? "").trim().isEmpty
+          ? "Enter your mobile number."
+          : null;
+      _photoError = _tourismIdPhotoBytes == null
+          ? "Please upload a photo of your Tourism ID."
+          : null;
     });
+    final formOk = _formKey.currentState!.validate();
+    if (!formOk || _phoneError != null || _photoError != null) return;
+
+    setState(() => _isSubmitting = true);
+    final auth = context.read<AuthProvider>();
+    final navigator = Navigator.of(context);
 
     try {
       final result = await _apiService.registerGuide(
@@ -78,19 +101,23 @@ class _GuideRegisterScreenState extends State<GuideRegisterScreen> {
         mobileNumber: _mobileNumber!.trim(),
         country: _country,
         languages: _languagesController.text.trim(),
-        tourismIdPhoto: UploadFile(_tourismIdPhotoBytes!, _tourismIdPhotoName ?? "tourism_id.jpg"),
+        tourismIdPhoto: UploadFile(
+          _tourismIdPhotoBytes!,
+          _tourismIdPhotoName ?? "tourism_id.jpg",
+        ),
       );
+      await auth.setSessionFromAuthResult(result);
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
+    } catch (e) {
       if (mounted) {
-        await context.read<AuthProvider>().setSessionFromAuthResult(result);
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
+        setState(
+          () => _error =
+              "Registration failed: ${e.toString().replaceFirst('Exception: ', '')}",
         );
       }
-    } catch (e) {
-      // Show the real error (temporarily) instead of a generic guess, so it's clear what failed.
-      setState(() => _error = "Registration failed: ${e.toString().replaceFirst('Exception: ', '')}");
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -99,93 +126,129 @@ class _GuideRegisterScreenState extends State<GuideRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Register as a Guide")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              "Fill in your details below. After you submit, an Admin will review your "
-              "Tourism ID before your profile goes live to tourists.",
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Full Name")),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: "Email"),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: "Password"),
-              obscureText: true,
-            ),
-            const SizedBox(height: 12),
-            Row(
+      appBar: AppBar(title: const Text("Become a guide")),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Space.xl),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ageController,
-                    decoration: const InputDecoration(labelText: "Age"),
-                    keyboardType: TextInputType.number,
-                  ),
+                const InlineAlert(
+                  "After you submit, an admin reviews your Tourism ID before your profile goes live to tourists.",
+                  tone: Tone.info,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(controller: _regionController, decoration: const InputDecoration(labelText: "Region")),
+                const SizedBox(height: Space.xxl),
+                const SectionHeader("About you"),
+                const SizedBox(height: Space.md),
+                AppTextField(
+                  label: "Full name",
+                  controller: _nameController,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  validator: (v) => requiredField(v, "Enter your full name."),
+                ),
+                const SizedBox(height: Space.lg),
+                AppTextField(
+                  label: "Email",
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  validator: (v) => (v == null || !v.contains("@"))
+                      ? "Enter a valid email address."
+                      : null,
+                ),
+                const SizedBox(height: Space.lg),
+                AppTextField(
+                  label: "Password",
+                  controller: _passwordController,
+                  obscure: true,
+                  textInputAction: TextInputAction.next,
+                  helper: "Use at least 6 characters.",
+                  validator: (v) => (v == null || v.length < 6)
+                      ? "Password must be at least 6 characters."
+                      : null,
+                ),
+                const SizedBox(height: Space.lg),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AppTextField(
+                        label: "Age",
+                        controller: _ageController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => requiredField(v, "Required."),
+                      ),
+                    ),
+                    const SizedBox(width: Space.md),
+                    Expanded(
+                      flex: 2,
+                      child: AppTextField(
+                        label: "Region",
+                        controller: _regionController,
+                        textInputAction: TextInputAction.next,
+                        hint: "e.g. Kandy",
+                        validator: (v) =>
+                            requiredField(v, "Enter your region."),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Space.lg),
+                AppTextField(
+                  label: "NIC number",
+                  controller: _nicController,
+                  textInputAction: TextInputAction.next,
+                  validator: (v) => requiredField(v, "Enter your NIC number."),
+                ),
+                const SizedBox(height: Space.lg),
+                PhoneField(
+                  errorText: _phoneError,
+                  onChanged: (v) {
+                    _mobileNumber = v;
+                    if (_phoneError != null) setState(() => _phoneError = null);
+                  },
+                  onCountryChanged: (c) => setState(() => _country = c),
+                ),
+                const SizedBox(height: Space.lg),
+                AppTextField(
+                  label: "Languages",
+                  controller: _languagesController,
+                  hint: "e.g. English, Sinhala",
+                  helper: "Optional — comma separated.",
+                ),
+                const SizedBox(height: Space.xxl),
+                const SectionHeader("Verification"),
+                const SizedBox(height: Space.md),
+                PhotoUploadTile(
+                  title: "Tourism ID photo",
+                  hint: "A clear photo of your tourism board ID.",
+                  buttonLabel: _tourismIdPhotoBytes == null
+                      ? "Upload photo"
+                      : "Change photo",
+                  photos: [
+                    ?_tourismIdPhotoBytes,
+                  ],
+                  error: _photoError,
+                  onPick: _pickTourismIdPhoto,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: Space.lg),
+                  InlineAlert(_error!),
+                ],
+                const SizedBox(height: Space.xxl),
+                AppButton(
+                  label: "Submit application",
+                  loading: _isSubmitting,
+                  onPressed: _submit,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            TextField(controller: _nicController, decoration: const InputDecoration(labelText: "NIC Number")),
-            const SizedBox(height: 12),
-            IntlPhoneField(
-              initialCountryCode: 'LK',
-              decoration: const InputDecoration(
-                labelText: "Mobile Number",
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-              ),
-              flagsButtonPadding: const EdgeInsets.only(left: 6),
-              dropdownIconPosition: IconPosition.trailing,
-              dropdownIcon: const Icon(Icons.arrow_drop_down, size: 20),
-              onChanged: (phone) => _mobileNumber = phone.completeNumber,
-              onCountryChanged: (country) => setState(() => _country = country.name),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _languagesController,
-              decoration: const InputDecoration(labelText: "Languages (optional)", hintText: "e.g. English, Sinhala"),
-            ),
-            const SizedBox(height: 16),
-            const Text("Tourism ID Photo", style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            if (_tourismIdPhotoBytes != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.memory(_tourismIdPhotoBytes!, height: 160, fit: BoxFit.cover),
-              ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.upload_file),
-              label: Text(_tourismIdPhotoBytes == null ? "Upload Tourism ID Photo" : "Change Photo"),
-              onPressed: _pickTourismIdPhoto,
-            ),
-            const SizedBox(height: 20),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
-              child: _isSubmitting
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text("Submit Application"),
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );

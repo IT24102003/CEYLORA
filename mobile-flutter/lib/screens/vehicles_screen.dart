@@ -1,7 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/browse.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/ui/ui.dart';
 
 class VehiclesScreen extends StatefulWidget {
   const VehiclesScreen({super.key});
@@ -13,20 +15,17 @@ class VehiclesScreen extends StatefulWidget {
 class _VehiclesScreenState extends State<VehiclesScreen> {
   final ApiService _apiService = ApiService();
   final _searchController = TextEditingController();
-  Timer? _debounce;
 
   List<dynamic> _vehicles = [];
   bool _isLoading = true;
+  String? _error;
   String _sortBy = "id";
   String? _regionFilter;
   String? _typeFilter;
   bool _availableOnly = false;
 
-  static const _regions = [
-    "Colombo", "Kandy", "Galle", "Nuwara Eliya", "Ella", "Sigiriya",
-    "Jaffna", "Trincomalee", "Anuradhapura", "Mirissa",
-  ];
   static const _types = ["Car", "Van", "SUV", "Bus", "Tuk Tuk"];
+  static const _sorts = {"id": "Default", "rating": "Rating", "price": "Price"};
 
   @override
   void initState() {
@@ -36,19 +35,16 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _loadVehicles);
-  }
-
   Future<void> _loadVehicles() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final results = await _apiService.getVehicles(
         search: _searchController.text.trim(),
@@ -57,133 +53,138 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         type: _typeFilter,
         available: _availableOnly ? true : null,
       );
-      if (!mounted) return;
-      setState(() => _vehicles = results);
+      if (mounted) setState(() => _vehicles = results);
     } catch (e) {
-      // ignore, empty state handles it
+      if (mounted) setState(() => _error = "We couldn't load vehicles.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _openFilters() {
+    showFilterSheet(
+      context,
+      onApply: _loadVehicles,
+      onReset: () {
+        setState(() {
+          _sortBy = "id";
+          _regionFilter = null;
+          _typeFilter = null;
+          _availableOnly = false;
+        });
+        _loadVehicles();
+      },
+      sections: (set) => [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Available only"),
+          value: _availableOnly,
+          onChanged: (v) {
+            _availableOnly = v;
+            set(() {});
+          },
+        ),
+        FilterChips<String>(
+          title: "Sort by",
+          options: _sorts.keys.toList(),
+          labelOf: (k) => _sorts[k]!,
+          value: _sortBy,
+          onChanged: (v) {
+            _sortBy = v ?? "id";
+            set(() {});
+          },
+        ),
+        FilterChips<String>(
+          title: "Type",
+          options: _types,
+          value: _typeFilter,
+          onChanged: (v) {
+            _typeFilter = v;
+            set(() {});
+          },
+        ),
+        FilterChips<String>(
+          title: "Region",
+          options: kRegions,
+          value: _regionFilter,
+          onChanged: (v) {
+            _regionFilter = v;
+            set(() {});
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active =
+        [_regionFilter, _typeFilter].where((e) => e != null).length +
+        (_availableOnly ? 1 : 0) +
+        (_sortBy != "id" ? 1 : 0);
     return Scaffold(
       appBar: AppBar(title: const Text("Vehicles")),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: "Search by type or region...",
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _sortBy,
-                  items: const [
-                    DropdownMenuItem(value: "id", child: Text("Default")),
-                    DropdownMenuItem(value: "rating", child: Text("Rating")),
-                    DropdownMenuItem(value: "price", child: Text("Price")),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _sortBy = val ?? "id");
-                    _loadVehicles();
-                  },
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                DropdownButton<String?>(
-                  value: _regionFilter,
-                  hint: const Text("All regions"),
-                  items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text("All regions")),
-                    ..._regions.map((r) => DropdownMenuItem<String?>(value: r, child: Text(r))),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _regionFilter = val);
-                    _loadVehicles();
-                  },
-                ),
-                DropdownButton<String?>(
-                  value: _typeFilter,
-                  hint: const Text("All types"),
-                  items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text("All types")),
-                    ..._types.map((t) => DropdownMenuItem<String?>(value: t, child: Text(t))),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _typeFilter = val);
-                    _loadVehicles();
-                  },
-                ),
-                FilterChip(
-                  label: const Text("Available only"),
-                  selected: _availableOnly,
-                  onSelected: (val) {
-                    setState(() => _availableOnly = val);
-                    _loadVehicles();
-                  },
-                ),
-              ],
-            ),
+          FilterBar(
+            controller: _searchController,
+            onSearch: _loadVehicles,
+            hint: "Search by type or region",
+            activeFilters: active,
+            onFilters: _openFilters,
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadVehicles,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _vehicles.isEmpty
-                      ? const Center(child: Text("No vehicles found."))
-                      : ListView.builder(
-                          itemCount: _vehicles.length,
-                          itemBuilder: (context, index) {
-                            final v = _vehicles[index];
-                            final rating = (v["rating"] as num?)?.toDouble() ?? 0;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              child: ListTile(
-                                leading: const CircleAvatar(child: Icon(Icons.directions_car)),
-                                title: Text(v["type"] ?? ""),
-                                subtitle: Text(
-                                  "${v["region"] ?? ""} • Capacity: ${v["capacity"]} • LKR ${v["pricePerKm"] ?? 0}/km"
-                                  "${rating > 0 ? '\n⭐ ${rating.toStringAsFixed(1)} guest rating' : ''}",
-                                ),
-                                isThreeLine: rating > 0,
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.circle,
-                                      size: 12,
-                                      color: v["isAvailable"] == true ? Colors.green : Colors.grey,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    FavoriteButton(itemType: "Vehicle", itemId: v["id"]),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+              child: StateView(
+                loading: _isLoading,
+                error: _error,
+                onRetry: _loadVehicles,
+                isEmpty: _vehicles.isEmpty,
+                emptyIcon: Icons.directions_car_rounded,
+                emptyTitle: "No vehicles found",
+                emptyMessage: "Try a different search, or clear the filters.",
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(Space.lg),
+                  itemCount: _vehicles.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: Space.md),
+                  itemBuilder: (context, index) {
+                    final v = _vehicles[index];
+                    final rating = (v["rating"] as num?)?.toDouble() ?? 0;
+                    final available = v["isAvailable"] == true;
+                    final images = v["images"] as List?;
+                    final cover = images != null && images.isNotEmpty
+                        ? (images.firstWhere(
+                                (i) => i["isCover"] == true,
+                                orElse: () => images.first,
+                              ))["imageUrl"]
+                              as String?
+                        : null;
+                    return ListingCard(
+                      index: index,
+                      title: (v["name"] ?? v["type"] ?? "").toString(),
+                      subtitle:
+                          "${v["region"] ?? ""} · ${v["capacity"]} seats · LKR ${v["pricePerKm"] ?? 0}/km",
+                      imageUrl: cover,
+                      fallbackIcon: Icons.directions_car_rounded,
+                      meta: rating > 0 ? RatingStars(rating, size: 14) : null,
+                      badges: [
+                        StatusBadge(
+                          available ? "Available" : "Unavailable",
+                          tone: available ? Tone.success : Tone.neutral,
+                          icon: available
+                              ? Icons.check_circle_rounded
+                              : Icons.pause_circle_rounded,
                         ),
+                      ],
+                      trailing: FavoriteButton(
+                        itemType: "Vehicle",
+                        itemId: v["id"],
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],

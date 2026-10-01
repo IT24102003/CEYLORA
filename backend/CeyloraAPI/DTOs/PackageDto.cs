@@ -4,6 +4,7 @@ namespace CeyloraAPI.DTOs
     {
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
         public decimal BasePrice { get; set; }
         public int DurationDays { get; set; }
         public int MaxPeople { get; set; } = 4;

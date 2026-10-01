@@ -1,7 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
+import '../widgets/browse.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/ui/ui.dart';
 
 class HotelsScreen extends StatefulWidget {
   const HotelsScreen({super.key});
@@ -13,17 +15,18 @@ class HotelsScreen extends StatefulWidget {
 class _HotelsScreenState extends State<HotelsScreen> {
   final ApiService _apiService = ApiService();
   final _searchController = TextEditingController();
-  Timer? _debounce;
 
   List<dynamic> _hotels = [];
   bool _isLoading = true;
+  String? _error;
   String _sortBy = "stars"; // stars | rating | price
   String? _regionFilter;
 
-  static const _regions = [
-    "Colombo", "Kandy", "Galle", "Nuwara Eliya", "Ella", "Sigiriya",
-    "Jaffna", "Trincomalee", "Anuradhapura", "Mirissa",
-  ];
+  static const _sorts = {
+    "stars": "Stars",
+    "rating": "Guest rating",
+    "price": "Price",
+  };
 
   @override
   void initState() {
@@ -33,124 +36,136 @@ class _HotelsScreenState extends State<HotelsScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _loadHotels);
-  }
-
   Future<void> _loadHotels() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final results = await _apiService.getHotels(
         search: _searchController.text.trim(),
         sortBy: _sortBy,
         region: _regionFilter,
       );
-      if (!mounted) return;
-      setState(() => _hotels = results);
+      if (mounted) setState(() => _hotels = results);
     } catch (e) {
-      // ignore
+      if (mounted) setState(() => _error = "We couldn't load hotels.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _openFilters() {
+    showFilterSheet(
+      context,
+      onApply: _loadHotels,
+      onReset: () {
+        setState(() {
+          _sortBy = "stars";
+          _regionFilter = null;
+        });
+        _loadHotels();
+      },
+      sections: (set) => [
+        FilterChips<String>(
+          title: "Sort by",
+          options: _sorts.keys.toList(),
+          labelOf: (k) => _sorts[k]!,
+          value: _sortBy,
+          onChanged: (v) {
+            _sortBy = v ?? "stars";
+            set(() {});
+          },
+        ),
+        FilterChips<String>(
+          title: "Region",
+          options: kRegions,
+          value: _regionFilter,
+          onChanged: (v) {
+            _regionFilter = v;
+            set(() {});
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active =
+        (_regionFilter != null ? 1 : 0) + (_sortBy != "stars" ? 1 : 0);
     return Scaffold(
       appBar: AppBar(title: const Text("Hotels")),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: "Search hotels...",
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _sortBy,
-                  items: const [
-                    DropdownMenuItem(value: "stars", child: Text("Stars")),
-                    DropdownMenuItem(value: "rating", child: Text("Rating")),
-                    DropdownMenuItem(value: "price", child: Text("Price")),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _sortBy = val ?? "stars");
-                    _loadHotels();
-                  },
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: DropdownButton<String?>(
-                value: _regionFilter,
-                hint: const Text("All regions"),
-                items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text("All regions")),
-                  ..._regions.map((r) => DropdownMenuItem<String?>(value: r, child: Text(r))),
-                ],
-                onChanged: (val) {
-                  setState(() => _regionFilter = val);
-                  _loadHotels();
-                },
-              ),
-            ),
+          FilterBar(
+            controller: _searchController,
+            onSearch: _loadHotels,
+            hint: "Search hotels",
+            activeFilters: active,
+            onFilters: _openFilters,
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadHotels,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _hotels.isEmpty
-                      ? const Center(child: Text("No hotels found."))
-                      : ListView.builder(
-                          itemCount: _hotels.length,
-                          itemBuilder: (context, index) {
-                            final h = _hotels[index];
-                            final rating = (h["rating"] as num?)?.toDouble() ?? 0;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              child: ListTile(
-                                leading: const CircleAvatar(child: Icon(Icons.hotel)),
-                                title: Text(h["name"] ?? ""),
-                                subtitle: Text(
-                                  "${h["region"] ?? ""} • ${List.filled((h["starRating"] ?? 0) as int, "★").join()} • LKR ${h["pricePerNight"]}/night"
-                                  "${rating > 0 ? '\n⭐ ${rating.toStringAsFixed(1)} guest rating' : ''}",
-                                ),
-                                isThreeLine: rating > 0,
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text("${h["roomsAvailable"]} rooms", style: const TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 6),
-                                    FavoriteButton(itemType: "Hotel", itemId: h["id"]),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+              child: StateView(
+                loading: _isLoading,
+                error: _error,
+                onRetry: _loadHotels,
+                isEmpty: _hotels.isEmpty,
+                emptyIcon: Icons.hotel_rounded,
+                emptyTitle: "No hotels found",
+                emptyMessage: "Try a different search or region.",
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(Space.lg),
+                  itemCount: _hotels.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: Space.md),
+                  itemBuilder: (context, index) {
+                    final h = _hotels[index];
+                    final rating = (h["rating"] as num?)?.toDouble() ?? 0;
+                    final stars = (h["starRating"] as num?)?.toInt() ?? 0;
+                    return ListingCard(
+                      index: index,
+                      title: h["name"] ?? "",
+                      subtitle:
+                          "${h["region"] ?? ""} · LKR ${h["pricePerNight"]}/night",
+                      imageUrl: h["imageUrl"],
+                      fallbackIcon: Icons.hotel_rounded,
+                      meta: Row(
+                        children: [
+                          for (var i = 0; i < stars; i++)
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 16,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          if (rating > 0) ...[
+                            const SizedBox(width: Space.sm),
+                            RatingStars(rating, size: 14),
+                          ],
+                        ],
+                      ),
+                      badges: [
+                        StatusBadge(
+                          "${h["roomsAvailable"]} rooms left",
+                          tone: (h["roomsAvailable"] ?? 0) <= 3
+                              ? Tone.warning
+                              : Tone.neutral,
                         ),
+                      ],
+                      trailing: FavoriteButton(
+                        itemType: "Hotel",
+                        itemId: h["id"],
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],

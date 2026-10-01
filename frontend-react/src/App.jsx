@@ -1,52 +1,76 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./components/AdminLayout";
 import LoginPage from "./pages/LoginPage";
-import AgentMonitorPage from "./pages/AgentMonitorPage";
-import DestinationsPage from "./pages/DestinationsPage";
-import PackagesPage from "./pages/PackagesPage";
-import HotelsPage from "./pages/HotelsPage";
-import BookingsPage from "./pages/BookingsPage";
-import GuidesPage from "./pages/GuidesPage";
-import VehiclesPage from "./pages/VehiclesPage";
-import ReviewsPage from "./pages/ReviewsPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import VerificationsPage from "./pages/VerificationsPage";
+import { ConfirmProvider, ToastProvider, Spinner } from "./components/ui";
+
+// Route-level code splitting: each admin page is its own chunk.
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const AgentMonitorPage = lazy(() => import("./pages/AgentMonitorPage"));
+const DestinationsPage = lazy(() => import("./pages/DestinationsPage"));
+const PackagesPage = lazy(() => import("./pages/PackagesPage"));
+const HotelsPage = lazy(() => import("./pages/HotelsPage"));
+const BookingsPage = lazy(() => import("./pages/BookingsPage"));
+const GuidesPage = lazy(() => import("./pages/GuidesPage"));
+const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
+const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
+const VerificationsPage = lazy(() => import("./pages/VerificationsPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+
+const PageLoader = () => (
+  <div style={{ display: "grid", placeItems: "center", minHeight: "50vh" }}>
+    <Spinner large />
+  </div>
+);
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+    <ToastProvider>
+      <ConfirmProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
 
-          {/* Every admin page shares the left-side nav from AdminLayout. Logging in (or
-              hitting "/" or the old "/dashboard" link) lands on Analytics first. */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/agent-monitor" element={<AgentMonitorPage />} />
-            <Route path="/destinations" element={<DestinationsPage />} />
-            <Route path="/packages" element={<PackagesPage />} />
-            <Route path="/hotels" element={<HotelsPage />} />
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/guides" element={<GuidesPage />} />
-            <Route path="/vehicles" element={<VehiclesPage />} />
-            <Route path="/reviews" element={<ReviewsPage />} />
-            <Route path="/verifications" element={<VerificationsPage />} />
-          </Route>
+              {/* Every admin page shares the sidebar / bottom-nav shell from AdminLayout. */}
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <AdminLayout />
+                  </ProtectedRoute>
+                }
+              >
+                {[
+                  ["/analytics", AnalyticsPage],
+                  ["/agent-monitor", AgentMonitorPage],
+                  ["/destinations", DestinationsPage],
+                  ["/packages", PackagesPage],
+                  ["/hotels", HotelsPage],
+                  ["/bookings", BookingsPage],
+                  ["/guides", GuidesPage],
+                  ["/vehicles", VehiclesPage],
+                  ["/reviews", ReviewsPage],
+                  ["/verifications", VerificationsPage],
+                  ["/reports", ReportsPage],
+                ].map(([path, Page]) => (
+                  <Route
+                    key={path}
+                    path={path}
+                    element={<Suspense fallback={<PageLoader />}><Page /></Suspense>}
+                  />
+                ))}
+              </Route>
 
-          <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
-          <Route path="/" element={<Navigate to="/analytics" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+              <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+              <Route path="/" element={<Navigate to="/analytics" replace />} />
+              <Route path="*" element={<Navigate to="/analytics" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
 
