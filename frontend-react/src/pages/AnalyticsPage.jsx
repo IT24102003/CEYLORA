@@ -1,7 +1,8 @@
+//analytics page
+
 import { useState } from "react";
 import {
-  Banknote, Ban, CalendarCheck, CheckCircle2, Clock, Compass, Hotel, MapPin, Package, Car, Receipt, Users, BadgeCheck, Star,
-} from "lucide-react";
+  Banknote, Ban, CalendarCheck, CheckCircle2, Clock, Compass, Hotel, MapPin, Package, Car, Receipt, Users, BadgeCheck, Star,} from "lucide-react";
 import api from "../services/api";
 import { BarChart, HorizontalBarList } from "../components/MiniCharts";
 import { Card, ErrorState, PageHeader, Skeleton, StatCard, Tabs, EmptyState } from "../components/ui";

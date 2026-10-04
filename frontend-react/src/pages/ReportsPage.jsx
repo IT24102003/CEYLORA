@@ -5,7 +5,7 @@ import { BarChart, HorizontalBarList } from "../components/MiniCharts";
 import { Button, Card, ErrorState, PageHeader, Select, Skeleton, useToast } from "../components/ui";
 import { formatLKR, useRemote } from "../lib/hooks";
 
-// Must match the backend's BookingStatus enum order (see BookingsPage).
+// Must match the backend's BookingStatus enum order .
 const STATUS = ["Pending", "Confirmed", "Cancelled", "Ended", "OnGoing", "Rejected"];
 const statusName = (s) => (typeof s === "number" ? STATUS[s] : s);
 

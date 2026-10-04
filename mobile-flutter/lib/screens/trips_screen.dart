@@ -7,7 +7,7 @@ import 'chat_screen.dart';
 import 'payment_screen.dart';
 import 'review_screen.dart';
 
-/// Trips tab (tourists): booking & payment history with the actions each status allows.
+///The trips tab (tourists): booking & payment history with the actions each status allows.
 class TripsScreen extends StatefulWidget {
   const TripsScreen({super.key});
 

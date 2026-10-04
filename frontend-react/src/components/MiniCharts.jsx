@@ -3,7 +3,7 @@ import { useId } from "react";
 // Small dependency-free SVG charts for the Analytics dashboard.
 // Colours come from CSS tokens so they follow light/dark mode.
 
-// Round the axis maximum up to a "nice" value so the 4 gridline steps are readable numbers.
+// Round axis maximum up to a "nice" value so the 4 gridline steps are readable numbers.
 function niceMax(v) {
   const raw = Math.max(v, 4) / 4;
   const mag = 10 ** Math.floor(Math.log10(raw));
