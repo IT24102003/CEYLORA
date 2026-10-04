@@ -9,9 +9,11 @@ const api = axios.create({
   baseURL: `${API_ROOT}/api`,
   // Without this, a slow/stuck backend (e.g. a DB connection-pool wait) leaves
   // the page spinning forever with no error and nothing in the console — the
-  // request never fails, it just never resolves. 15s gives a clear timeout
-  // error the UI can show instead.
-  timeout: 15000,
+  // request never fails, it just never resolves. 20s gives a clear timeout
+  // error the UI can show instead, while leaving the backend's own retry
+  // logic (Program.cs: EnableRetryOnFailure, ~10-14s worst case) room to
+  // actually finish before the browser gives up on it.
+  timeout: 20000,
 });
 
 /** Uploaded files come back as relative paths ("/uploads/..."); make them absolute. */

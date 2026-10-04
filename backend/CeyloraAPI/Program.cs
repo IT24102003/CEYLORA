@@ -77,8 +77,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
+            // Kept short on purpose: the frontend gives up on a request after 15s
+            // (see api.js), so a retry chain here has to resolve well inside that,
+            // not after it — a retry that finishes 20s after the browser already
+            // cancelled helps no one. Paired with a lower Command Timeout in the
+            // connection string, 2 retries x up to 2s backoff leaves comfortable
+            // room for a quick attempt + one retry to land inside the client's
+            // window.
+            maxRetryCount: 2,
+            maxRetryDelay: TimeSpan.FromSeconds(2),
             errorCodesToAdd: null)));
 
 // JWT Authentication
