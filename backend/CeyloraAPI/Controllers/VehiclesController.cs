@@ -165,10 +165,14 @@ namespace CeyloraAPI.Controllers
             return NoContent();
         }
 
-        // PUT: api/vehicles/5/availability — Admin, or the Vehicle Owner who owns it
+        // PUT: api/vehicles/5/availability?isAvailable=true — Admin, or the Vehicle Owner who owns it
+        // 🔥 Fix: [FromBody] bool needs Content-Type: application/json, which a raw-boolean
+        // axios PUT body doesn't send (see the same fix on GuidesController.ToggleAvailability
+        // — it hit a 415 Unsupported Media Type there). Switched to a query param so this
+        // endpoint doesn't hit the same issue once something in the UI calls it.
         [HttpPut("{id}/availability")]
         [Authorize(Roles = "VehicleOwner,Admin")]
-        public async Task<IActionResult> ToggleAvailability(int id, [FromBody] bool isAvailable)
+        public async Task<IActionResult> ToggleAvailability(int id, [FromQuery] bool isAvailable)
         {
             var vehicle = await _context.Vehicles.FindAsync(id);
             if (vehicle == null) return NotFound(new { message = "Vehicle not found." });
@@ -191,6 +195,32 @@ namespace CeyloraAPI.Controllers
             }
 
             vehicle.IsAvailable = isAvailable;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // PUT: api/vehicles/5/details — the owning Vehicle Owner (or Admin) can edit the
+        // vehicle's basic details from the app/profile. Type and PricePerKm are intentionally
+        // not editable here — they drive the fixed per-type business pricing — and
+        // availability has its own toggle endpoint above.
+        [HttpPut("{id}/details")]
+        [Authorize(Roles = "VehicleOwner,Admin")]
+        public async Task<IActionResult> UpdateDetails(int id, VehicleOwnerUpdateDto dto)
+        {
+            var vehicle = await _context.Vehicles.FindAsync(id);
+            if (vehicle == null) return NotFound(new { message = "Vehicle not found." });
+
+            if (!User.IsInRole("Admin"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                if (vehicle.OperatorId != userId) return Forbid();
+            }
+
+            vehicle.Name = dto.Name;
+            vehicle.Capacity = dto.Capacity;
+            vehicle.ManufacturerYear = dto.ManufacturerYear;
+            vehicle.Region = dto.Region;
+
             await _context.SaveChangesAsync();
             return NoContent();
         }

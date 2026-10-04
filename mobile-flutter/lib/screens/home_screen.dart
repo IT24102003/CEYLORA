@@ -110,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
         )
       else
         _Tab(
-          "Trips",
+          "Tours",
           Icons.luggage_outlined,
           Icons.luggage_rounded,
           () => const TripsScreen(),

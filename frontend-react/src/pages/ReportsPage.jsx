@@ -193,11 +193,11 @@ export default function ReportsPage() {
           </div>
 
           <Card pad style={{ marginTop: "var(--space-4)" }}>
-            <div className="card__head"><h2 className="card__title">Top guides</h2><span className="card__sub">by completed trips</span></div>
+            <div className="card__head"><h2 className="card__title">Top guides</h2><span className="card__sub">by completed tours</span></div>
             {report.guides.length === 0 ? <p className="muted">No guide activity yet.</p> : (
               <div className="table-wrap">
                 <table className="dt" style={{ fontSize: "var(--fs-sm)" }}>
-                  <thead><tr><th>Guide</th><th>Region</th><th>Rating</th><th>Completed trips</th></tr></thead>
+                  <thead><tr><th>Guide</th><th>Region</th><th>Rating</th><th>Completed tours</th></tr></thead>
                   <tbody>
                     {report.guides.map((g) => (
                       <tr key={g.guideId}>

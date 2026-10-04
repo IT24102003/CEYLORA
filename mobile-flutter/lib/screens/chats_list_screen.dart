@@ -77,7 +77,7 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
           emptyTitle: "No chats yet",
           emptyMessage: isGuide
               ? "Conversations with your tourists will appear here."
-              : "Once a guide is assigned to your trip, you can chat with them here.",
+              : "Once a guide is assigned to your tour, you can chat with them here.",
           child: ListView.separated(
             padding: const EdgeInsets.all(Space.lg),
             itemCount: _threads.length,
@@ -87,7 +87,7 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
               final title =
                   (isGuide
                           ? (t["otherPartyName"] ?? "Tourist")
-                          : (t["tripName"] ?? "Trip"))
+                          : (t["tripName"] ?? "Tour"))
                       .toString();
               final unread = (t["unread"] as num?)?.toInt() ?? 0;
               return FadeInUp(

@@ -1,9 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 	<uses-permission android:name="android.permission.CAMERA" />
+	<!-- 🔥 usesCleartextTraffic="true" on <application> below — Android 9+
+	     (API 28+, which Flutter's default targetSdk is) blocks plain http://
+	     network calls by default. This app's backend runs locally over http://
+	     (10.0.2.2:5220 from the emulator, or a LAN IP on a real device), so
+	     without this every API call from the Android app fails silently with
+	     a generic connection/cleartext error — which is exactly why trip
+	     planning (and anything else hitting the backend) worked from Chrome
+	     but not from the Android emulator. -->
     <application
         android:label="ceylora_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

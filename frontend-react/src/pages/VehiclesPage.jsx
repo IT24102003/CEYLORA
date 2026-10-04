@@ -84,7 +84,7 @@ export default function VehiclesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Vehicles" subtitle="The registered fleet that can be assigned to confirmed trips." />
+      <PageHeader title="Vehicles" subtitle="The registered fleet that can be assigned to confirmed tours." />
 
       <Toolbar
         search={<SearchInput value={draft.search} onChange={(v) => setDraft((d) => ({ ...d, search: v }))} onEnter={apply} placeholder="Search by type or region…" />}

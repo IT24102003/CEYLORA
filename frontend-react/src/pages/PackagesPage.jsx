@@ -117,14 +117,14 @@ export default function PackagesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Packages" subtitle="Curated trips tourists can book. Publish a package once its route and hotels are set." actions={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} />
+      <PageHeader title="Packages" subtitle="Curated tours tourists can book. Publish a package once its route and hotels are set." actions={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} />
 
       {loading && !packages ? (
         <Card><TableSkeleton /></Card>
       ) : error && !packages ? (
         <Card><ErrorState text="Packages could not be loaded." onRetry={reload} /></Card>
       ) : packages.length === 0 ? (
-        <Card><EmptyState icon={PackageIcon} title="No packages yet" text="Create a package, then add destinations and hotels to shape the trip." action={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} /></Card>
+        <Card><EmptyState icon={PackageIcon} title="No packages yet" text="Create a package, then add destinations and hotels to shape the tour." action={<Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>Add package</Button>} /></Card>
       ) : (
         <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity var(--dur-base)" }}>
           <DataTable columns={columns} rows={packages} caption="Packages" />

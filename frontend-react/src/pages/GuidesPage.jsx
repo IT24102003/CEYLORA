@@ -37,7 +37,17 @@ export default function GuidesPage() {
   const toggleAvailability = (g) =>
     act(g.id, async () => {
       try {
-        await api.put(`/guides/${g.id}/availability`, !g.isAvailable);
+        // 🔥 Fix: the backend endpoint reads `isAvailable` from the QUERY
+        // STRING ([FromQuery] bool — GuidesController.ToggleAvailability),
+        // not a JSON body. This used to send the new value as a raw
+        // boolean request body (`api.put(url, !g.isAvailable)`), and axios
+        // doesn't tag a primitive value's body as application/json, so no
+        // Content-Type header went out with it — ASP.NET Core rejected
+        // every toggle with "415 Unsupported Media Type" before the
+        // request ever reached the controller.
+        await api.put(`/guides/${g.id}/availability`, null, {
+          params: { isAvailable: !g.isAvailable },
+        });
         toast.success(`${g.name ?? "Guide"} is now ${g.isAvailable ? "unavailable" : "available"}.`);
         reload();
       } catch (err) {
@@ -96,7 +106,7 @@ export default function GuidesPage() {
     <div className="page">
       <PageHeader
         title="Guides"
-        subtitle="Local guides who lead trips. Toggle availability to control who can be assigned."
+        subtitle="Local guides who lead tours. Toggle availability to control who can be assigned."
         actions={<Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add guide profile</Button>}
       />
 

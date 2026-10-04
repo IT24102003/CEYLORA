@@ -107,7 +107,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
     return ListView(
       padding: const EdgeInsets.all(Space.lg),
       children: [
-        Text(d["tripName"] ?? "Trip", style: context.text.headlineSmall),
+        Text(d["tripName"] ?? "Tour", style: context.text.headlineSmall),
         const SizedBox(height: Space.sm),
         Wrap(
           spacing: Space.sm,
@@ -122,11 +122,11 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
           ],
         ),
         const SizedBox(height: Space.xl),
-        _section("Trip info", Icons.info_outline_rounded, [
+        _section("Tour info", Icons.info_outline_rounded, [
           InfoRow("Group size", "${d["groupSize"] ?? 1}"),
           InfoRow("Total price", "LKR ${d["totalPrice"]}"),
           InfoRow("Start date", _date(d["plannedStartDate"])),
-          InfoRow("Trip started", _date(d["tripStartedAt"])),
+          InfoRow("Tour started", _date(d["tripStartedAt"])),
           InfoRow("Booked on", _date(d["createdAt"])),
         ]),
         if (package != null)
@@ -146,7 +146,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
             InfoRow("Max people", "${package["maxPeople"]}"),
           ]),
         if (customTrip != null)
-          _section("Custom trip", Icons.route_rounded, [
+          _section("Custom tour", Icons.route_rounded, [
             InfoRow("Objective", customTrip["objective"]),
             InfoRow("Duration", "${customTrip["durationDays"]} days"),
           ]),

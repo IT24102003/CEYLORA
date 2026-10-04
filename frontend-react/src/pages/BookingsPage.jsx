@@ -134,7 +134,7 @@ export default function BookingsPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Bookings" subtitle="Review incoming trips, assign a guide and vehicle once paid, and track each booking through to completion." />
+      <PageHeader title="Bookings" subtitle="Review incoming tours, assign a guide and vehicle once paid, and track each booking through to completion." />
 
       <div style={{ marginBottom: "var(--space-4)" }}>
         <Tabs label="Filter bookings by status" tabs={TABS} value={tab} onChange={setTab} />
@@ -162,7 +162,7 @@ export default function BookingsPage() {
         <AssignModal
           booking={assigning}
           onClose={() => setAssigning(null)}
-          onDone={() => { setAssigning(null); toast.success(`Trip confirmed for booking #${assigning.id}.`); reload(); }}
+          onDone={() => { setAssigning(null); toast.success(`Tour confirmed for booking #${assigning.id}.`); reload(); }}
         />
       )}
     </div>
@@ -220,7 +220,7 @@ function AssignModal({ booking, onClose, onDone }) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="success" loading={submitting} disabled={loadingOptions} onClick={submit}>Confirm trip</Button>
+          <Button variant="success" loading={submitting} disabled={loadingOptions} onClick={submit}>Confirm tour</Button>
         </>
       }
     >

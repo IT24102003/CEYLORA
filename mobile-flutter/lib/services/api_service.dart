@@ -186,6 +186,33 @@ class ApiService {
     }
   }
 
+  /// Lets a Vehicle Owner edit their own vehicle's basic details (name, region,
+  /// manufacture year, seats) from the Profile tab. Type and price-per-km stay
+  /// Admin-controlled, and availability has its own toggleVehicleAvailability call.
+  Future<void> updateVehicleDetails({
+    required int vehicleId,
+    String? name,
+    int? manufacturerYear,
+    required int capacity,
+    required String region,
+  }) async {
+    final response = await http.put(
+      Uri.parse("$baseUrl/vehicles/$vehicleId/details"),
+      headers: _headers,
+      body: jsonEncode({
+        "name": name,
+        "manufacturerYear": manufacturerYear,
+        "capacity": capacity,
+        "region": region,
+      }),
+    );
+    if (response.statusCode != 204) {
+      String message = "Failed to update vehicle details";
+      try { message = jsonDecode(response.body)["message"] ?? message; } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
   Future<Map<String, dynamic>?> getVehicleOwnerEarnings(int vehicleOwnerId) async {
     final response = await http.get(Uri.parse("$baseUrl/vehicle-owners/$vehicleOwnerId/earnings"), headers: _headers);
     if (response.statusCode == 200) return jsonDecode(response.body);
@@ -565,7 +592,7 @@ class ApiService {
   Future<void> endTrip(int assignmentId) async {
     final response = await http.put(Uri.parse("$baseUrl/assignments/$assignmentId/end"), headers: _headers);
     if (response.statusCode != 204) {
-      String message = "Failed to end trip";
+      String message = "Failed to end tour";
       try { message = jsonDecode(response.body)["message"] ?? message; } catch (_) {}
       throw Exception(message);
     }

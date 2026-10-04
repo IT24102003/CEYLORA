@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div>
           <p className="auth__quote">Ceylora administration</p>
           <ul className="auth__points">
-            <li><RouteIcon size={18} /> Approve trip plans</li>
+            <li><RouteIcon size={18} /> Approve tour plans</li>
             <li><ShieldCheck size={18} /> Verify guides and vehicle owners</li>
             <li><BarChart3 size={18} /> Track bookings, revenue and growth</li>
           </ul>

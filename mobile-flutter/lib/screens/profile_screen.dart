@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/ui/ui.dart';
 import 'profile_edit_screen.dart';
+import 'vehicle_edit_screen.dart';
 
 /// Profile tab (all roles): who you are, your contact details and (for tourists) the reviews you've left.
 class ProfileScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ApiService _api = ApiService();
   Map<String, dynamic>? _profile;
   List<_ReviewItem> _reviews = [];
+  List<dynamic> _vehicles = [];
   bool _loading = true;
   String? _error;
 
@@ -31,6 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final r = context.read<AuthProvider>().role;
     return r != "Guide" && r != "VehicleOwner";
   }
+
+  bool get _isVehicleOwner => context.read<AuthProvider>().role == "VehicleOwner";
 
   @override
   void initState() {
@@ -54,17 +58,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final lists = await Future.wait(ended.map((b) => _api.getReviewsForBooking(b["id"] as int)));
         for (var i = 0; i < ended.length; i++) {
           final b = ended[i];
-          final name = (b["packageName"] ?? b["package"]?["name"] ?? "Custom trip").toString();
+          final name = (b["packageName"] ?? b["package"]?["name"] ?? "Custom tour").toString();
           for (final r in lists[i]) {
             reviews.add(_ReviewItem(name, Map<String, dynamic>.from(r)));
           }
         }
         reviews.sort((a, b) => (b.review["createdAt"] ?? "").toString().compareTo((a.review["createdAt"] ?? "").toString()));
       }
+      final vehicles = _isVehicleOwner ? await _api.getMyVehicles() : <dynamic>[];
       if (!mounted) return;
       setState(() {
         _profile = profile;
         _reviews = reviews;
+        _vehicles = vehicles;
       });
     } catch (_) {
       if (mounted) setState(() => _error = "We couldn't load your profile.");
@@ -77,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ok = await confirmSheet(
       context,
       title: "Sign out?",
-      message: "You'll need to sign in again to see your trips and messages.",
+      message: "You'll need to sign in again to see your tours and messages.",
       confirmLabel: "Sign out",
       destructive: true,
     );
@@ -152,6 +158,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ]),
                 ),
               ),
+              if (_isVehicleOwner) ...[
+                const SizedBox(height: Space.xxl),
+                const SectionHeader("My vehicles"),
+                const SizedBox(height: Space.sm),
+                if (_vehicles.isEmpty)
+                  const GlassCard(
+                    child: EmptyState(
+                      icon: Icons.directions_car_rounded,
+                      title: "No vehicles on file",
+                      message: "Vehicles you register will appear here.",
+                    ),
+                  )
+                else
+                  for (var i = 0; i < _vehicles.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: Space.sm),
+                      child: FadeInUp(
+                        index: i,
+                        child: _VehicleCard(
+                          vehicle: Map<String, dynamic>.from(_vehicles[i]),
+                          onEdit: () async {
+                            final changed = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => VehicleEditScreen(
+                                  vehicle: Map<String, dynamic>.from(_vehicles[i]),
+                                ),
+                              ),
+                            );
+                            if (changed == true) _load();
+                          },
+                        ),
+                      ),
+                    ),
+              ],
               if (_isTourist) ...[
                 const SizedBox(height: Space.xxl),
                 Row(children: [
@@ -168,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: EmptyState(
                       icon: Icons.rate_review_outlined,
                       title: "No reviews yet",
-                      message: "After a trip ends you can rate your guide, hotel and vehicle — your reviews will show up here.",
+                      message: "After a tour ends you can rate your guide, hotel and vehicle — your reviews will show up here.",
                     ),
                   )
                 else
@@ -203,6 +244,62 @@ class _Detail extends StatelessWidget {
         const Spacer(),
         Flexible(child: Text(has ? value! : "—", style: context.text.titleSmall, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
       ]),
+    );
+  }
+}
+
+class _VehicleCard extends StatelessWidget {
+  const _VehicleCard({required this.vehicle, required this.onEdit});
+  final Map<String, dynamic> vehicle;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = (vehicle["type"] ?? "").toString();
+    final name = (vehicle["name"] ?? "").toString();
+    final year = vehicle["manufacturerYear"];
+    final capacity = vehicle["capacity"];
+    final region = (vehicle["region"] ?? "").toString();
+
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md),
+      child: Row(
+        children: [
+          const IconTile(Icons.directions_car_rounded, size: 46),
+          const SizedBox(width: Space.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? type : "$name ($type)",
+                  style: context.text.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (capacity != null) "$capacity seats",
+                    if (year != null) "$year",
+                    if (region.isNotEmpty) region,
+                  ].join(" · "),
+                  style: context.text.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: Space.sm),
+          AppButton(
+            label: "Edit",
+            icon: Icons.edit_outlined,
+            variant: AppButtonVariant.secondary,
+            expand: false,
+            compact: true,
+            onPressed: onEdit,
+          ),
+        ],
+      ),
     );
   }
 }

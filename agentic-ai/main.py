@@ -20,6 +20,9 @@ workflow_store: dict[str, WorkflowState] = {}
 class RunWorkflowRequest(BaseModel):
     objective: str
     booking_id: Optional[int] = None
+    # Tourist's home country (sent by the backend), used to pick a guide who
+    # speaks their language.
+    tourist_country: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -44,7 +47,9 @@ async def run_workflow(request: RunWorkflowRequest):
     Called internally by the ASP.NET Core backend only (never directly by React/Flutter).
     """
     workflow_id = str(uuid.uuid4())
-    initial_state = new_workflow_state(workflow_id, request.objective, request.booking_id)
+    initial_state = new_workflow_state(
+        workflow_id, request.objective, request.booking_id, request.tourist_country
+    )
 
     final_state = await ceylora_graph.ainvoke(initial_state)
 

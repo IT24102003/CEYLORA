@@ -101,14 +101,14 @@ export default function AnalyticsPage() {
               <HorizontalBarList data={data.topDestinations} nameKey="name" valueKey="bookings" />
             </Card>
             <Card pad>
-              <div className="card__head"><h2 className="card__title">Top guides</h2><span className="card__sub">by completed trips</span></div>
+              <div className="card__head"><h2 className="card__title">Top guides</h2><span className="card__sub">by completed tours</span></div>
               {data.guidePerformance.length === 0 ? (
-                <EmptyState icon={Compass} title="No guide activity yet" text="Completed trips will rank your guides here." />
+                <EmptyState icon={Compass} title="No guide activity yet" text="Completed tours will rank your guides here." />
               ) : (
                 <div className="table-wrap">
                   <table className="dt" style={{ fontSize: "var(--fs-sm)" }}>
                     <thead>
-                      <tr><th>Guide</th><th>Region</th><th>Rating</th><th>Trips</th></tr>
+                      <tr><th>Guide</th><th>Region</th><th>Rating</th><th>Tours</th></tr>
                     </thead>
                     <tbody>
                       {data.guidePerformance.map((g) => (
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
                           <td data-label="Guide" className="cell-primary"><strong>{g.name}</strong></td>
                           <td data-label="Region">{g.region}</td>
                           <td data-label="Rating"><span className="row" style={{ gap: 4 }}><Star size={13} fill="currentColor" style={{ color: "var(--c-warning)" }} aria-hidden="true" />{Number(g.rating).toFixed(1)}</span></td>
-                          <td data-label="Trips" className="mono">{g.completedTrips}</td>
+                          <td data-label="Tours" className="mono">{g.completedTrips}</td>
                         </tr>
                       ))}
                     </tbody>

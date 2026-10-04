@@ -84,6 +84,8 @@ namespace CeyloraAPI.Controllers
                 Name = dto.Name,
                 Region = dto.Region,
                 Address = dto.Address,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude,
                 StarRating = dto.StarRating,
                 PricePerNight = dto.PricePerNight,
                 RoomsAvailable = dto.RoomsAvailable,
@@ -110,6 +112,8 @@ namespace CeyloraAPI.Controllers
             hotel.Name = dto.Name;
             hotel.Region = dto.Region;
             hotel.Address = dto.Address;
+            hotel.Latitude = dto.Latitude;
+            hotel.Longitude = dto.Longitude;
             hotel.StarRating = dto.StarRating;
             hotel.PricePerNight = dto.PricePerNight;
             hotel.RoomsAvailable = dto.RoomsAvailable;

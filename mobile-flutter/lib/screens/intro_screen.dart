@@ -80,7 +80,7 @@ class IntroScreen extends StatelessWidget {
                   FadeInUp(
                     index: 3,
                     child: Text(
-                      "Plan trips, book guides and vehicles.",
+                      "Plan tours, book guides and vehicles.",
                       textAlign: TextAlign.center,
                       style: context.text.bodyLarge!.copyWith(
                         color: Colors.white.withValues(alpha: 0.9),

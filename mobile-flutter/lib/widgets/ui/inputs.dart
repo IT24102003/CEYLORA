@@ -80,7 +80,14 @@ class _AppTextFieldState extends State<AppTextField> {
           textInputAction: widget.textInputAction,
           autofillHints: widget.autofillHints,
           maxLines: widget.obscure ? 1 : widget.maxLines,
-          minLines: widget.maxLines > 1 ? 3 : 1,
+          // 🔥 Fix: this used to hardcode `minLines: 3` whenever maxLines > 1,
+          // which crashed with "minLines can't be greater than maxLines"
+          // for ANY field using maxLines: 2 (e.g. the "Activities" field on
+          // the Day-by-day trip review screen) — 3 > 2. Now minLines is
+          // clamped so it's never more than maxLines.
+          minLines: widget.maxLines <= 1
+              ? 1
+              : (widget.maxLines < 3 ? widget.maxLines : 3),
           onChanged: widget.onChanged,
           onFieldSubmitted: widget.onSubmitted,
           validator: widget.validator,

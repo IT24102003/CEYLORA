@@ -23,18 +23,26 @@ namespace CeyloraAPI.Controllers
 
         private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        // GET: api/users?role=Guide (Admin only)
-        // Used by the admin panel to link a User account with role=Guide to a Guide profile.
+        // GET: api/users?role=Guide&search=john (Admin only)
+        // Used by the admin panel both to link a User account with role=Guide to a Guide
+        // profile, and (🔥 now also) to power the standalone "Users" tab's search/filter.
         [HttpGet]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetUsers([FromQuery] string? role)
+        public async Task<IActionResult> GetUsers([FromQuery] string? role, [FromQuery] string? search)
         {
             var query = _context.Users.AsQueryable();
             if (!string.IsNullOrWhiteSpace(role) && Enum.TryParse<Models.UserRole>(role, true, out var roleEnum))
                 query = query.Where(u => u.Role == roleEnum);
 
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.ToLower();
+                query = query.Where(u => u.Name.ToLower().Contains(s) || u.Email.ToLower().Contains(s));
+            }
+
             var users = await query.OrderBy(u => u.Name).ToListAsync();
             var guideUserIds = (await _context.Guides.Select(g => g.UserId).ToListAsync()).ToHashSet();
+            var vehicleOwnerUserIds = (await _context.VehicleOwners.Select(v => v.UserId).ToListAsync()).ToHashSet();
 
             var result = users.Select(u => new
             {
@@ -42,10 +50,44 @@ namespace CeyloraAPI.Controllers
                 name = u.Name,
                 email = u.Email,
                 role = u.Role.ToString(),
-                hasGuideProfile = guideUserIds.Contains(u.Id)
+                age = u.Age,
+                country = u.Country,
+                mobileNumber = u.MobileNumber,
+                profilePictureUrl = u.ProfilePictureUrl,
+                createdAt = u.CreatedAt,
+                hasGuideProfile = guideUserIds.Contains(u.Id),
+                hasVehicleOwnerProfile = vehicleOwnerUserIds.Contains(u.Id)
             });
 
             return Ok(result);
+        }
+
+        // DELETE: api/users/5 (Admin only)
+        // 🔥 Lets the admin remove a stray/test/abandoned account from the new Users tab.
+        // Blocks deleting the LAST remaining Admin account so the admin panel can never be
+        // locked out, and blocks deleting an account that still owns bookings (that history
+        // must stay attached to a real user) — delete/reassign those first.
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            if (user.Role == Models.UserRole.Admin)
+            {
+                var adminCount = await _context.Users.CountAsync(u => u.Role == Models.UserRole.Admin);
+                if (adminCount <= 1)
+                    return BadRequest(new { message = "Can't delete the last remaining Admin account." });
+            }
+
+            var hasBookings = await _context.Bookings.AnyAsync(b => b.TouristId == id);
+            if (hasBookings)
+                return BadRequest(new { message = "This user has bookings on record and can't be deleted." });
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
         // GET: api/users/me

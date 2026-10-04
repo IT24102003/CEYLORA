@@ -42,7 +42,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   Future<void> _confirmBooking() async {
     if (_startDate == null) {
-      setState(() => _error = "Please select a trip start date.");
+      setState(() => _error = "Please select a tour start date.");
       return;
     }
     setState(() {
@@ -300,7 +300,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      "Trip start date",
+                                      "Tour start date",
                                       style: context.text.titleSmall,
                                     ),
                                     Text(

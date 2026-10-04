@@ -137,7 +137,7 @@ class _TripsScreenState extends State<TripsScreen> {
   Widget build(BuildContext context) {
     final shown = _bookings.where(_matches).toList();
     return Scaffold(
-      appBar: AppBar(title: const Text("My trips")),
+      appBar: AppBar(title: const Text("My tours")),
       body: Column(
         children: [
           const SizedBox(height: Space.xs),
@@ -156,10 +156,10 @@ class _TripsScreenState extends State<TripsScreen> {
                 onRetry: _loadBookings,
                 isEmpty: shown.isEmpty,
                 emptyIcon: Icons.luggage_rounded,
-                emptyTitle: _filter == null ? "No trips yet" : "Nothing here",
+                emptyTitle: _filter == null ? "No tours yet" : "Nothing here",
                 emptyMessage: _filter == null
-                    ? "Book a package or plan a custom trip with AI — it will show up here."
-                    : "No trips match this filter.",
+                    ? "Book a package or plan a custom tour with AI — it will show up here."
+                    : "No tours match this filter.",
                 child: ListView.separated(
                   padding: const EdgeInsets.all(Space.lg),
                   itemCount: shown.length,
@@ -213,7 +213,7 @@ class _TripsScreenState extends State<TripsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      packageName.isEmpty ? "Custom trip" : packageName,
+                      packageName.isEmpty ? "Custom tour" : packageName,
                       style: context.text.titleSmall!.copyWith(fontSize: 16.5),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

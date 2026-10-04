@@ -50,7 +50,7 @@ function WorkflowCard({ wf, busy, onDecide }) {
           </Section>
         )}
         {wf.plan && (
-          <Section title="Trip plan">
+          <Section title="Tour plan">
             <dl className="kv">
               <dt>Days</dt><dd>{wf.plan.dayCount}</dd>
               {wf.plan.plannedStartDate && <><dt>Start date</dt><dd>{new Date(wf.plan.plannedStartDate).toLocaleDateString()}</dd></>}
@@ -130,7 +130,7 @@ export default function AgentMonitorPage() {
     <div className="page">
       <PageHeader
         title="Agent Workflow Monitor"
-        subtitle="AI-planned trips that need a human decision before they go ahead."
+        subtitle="AI-planned tours that need a human decision before they go ahead."
         actions={workflows && <Badge tone={workflows.length ? "warning" : "success"} dot>{workflows.length} awaiting approval</Badge>}
       />
 

@@ -104,7 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           isEmpty: _notifications.isEmpty,
           emptyIcon: Icons.notifications_none_rounded,
           emptyTitle: "You're all caught up",
-          emptyMessage: "Booking updates and trip news will show up here.",
+          emptyMessage: "Booking updates and tour news will show up here.",
           child: ListView.separated(
             padding: const EdgeInsets.all(Space.lg),
             itemCount: _notifications.length,

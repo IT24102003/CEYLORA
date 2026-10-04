@@ -236,10 +236,16 @@ namespace CeyloraAPI.Controllers
             return NoContent();
         }
 
-        // PUT: api/guides/5/availability
+        // PUT: api/guides/5/availability?isAvailable=true
+        // 🔥 Fix: this was [FromBody] bool, which requires the request's Content-Type to be
+        // application/json for ASP.NET Core to bind it. The admin panel calls this with
+        // axios, and a bare boolean body isn't tagged as JSON by axios's default
+        // transformRequest, so no Content-Type header went out — ASP.NET rejected every
+        // single toggle with 415 Unsupported Media Type before this method ever ran.
+        // A query param sidesteps the body/content-type question entirely.
         [HttpPut("{id}/availability")]
         [Authorize(Roles = "Guide,Admin")]
-        public async Task<IActionResult> ToggleAvailability(int id, [FromBody] bool isAvailable)
+        public async Task<IActionResult> ToggleAvailability(int id, [FromQuery] bool isAvailable)
         {
             var guide = await _context.Guides.FindAsync(id);
             if (guide == null) return NotFound(new { message = "Guide not found." });

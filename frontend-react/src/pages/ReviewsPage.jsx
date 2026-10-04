@@ -70,7 +70,7 @@ export default function ReviewsPage() {
       ) : error ? (
         <Card><ErrorState text="Reviews could not be loaded for that booking." onRetry={() => fetchReviews()} /></Card>
       ) : queried == null ? (
-        <Card><EmptyState icon={MessageSquareText} title="Search for a booking" text="Enter a booking ID above to see the reviews tourists left for that trip." /></Card>
+        <Card><EmptyState icon={MessageSquareText} title="Search for a booking" text="Enter a booking ID above to see the reviews tourists left for that tour." /></Card>
       ) : reviews.length === 0 ? (
         <Card><EmptyState icon={MessageSquareText} title="No reviews found" text={`Booking #${queried} doesn't have any reviews yet.`} /></Card>
       ) : (

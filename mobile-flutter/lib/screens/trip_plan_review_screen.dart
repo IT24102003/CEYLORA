@@ -25,6 +25,12 @@ class TripPlanReviewScreen extends StatefulWidget {
 class _DayPlan {
   int dayNumber;
   final TextEditingController activitiesController;
+  // 🔥 Per-day destination search box — the flat chip list of EVERY
+  // destination in the catalog was impossible to scan on a real trip (dozens
+  // of chips), so each day now has its own search text to filter that list.
+  final TextEditingController destinationSearchController =
+      TextEditingController();
+  String destinationSearchQuery = '';
   Set<int> destinationIds = {};
   int? hotelId;
   Map<String, dynamic>? weather;
@@ -38,13 +44,28 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
   final ApiService _apiService = ApiService();
 
   // A flat guide fee per day — the current schema doesn't store a guide price,
-  // so this is shown to the tourist as an estimate only.
-  static const double _guideFeePerDayLkr = 2500;
+  // so this is shown to the tourist as an estimate only. 🔥 Business rule is
+  // LKR 10,000/day (was 2500 — kept out of sync with the backend's own
+  // guideFeePerDay constant in AgentWorkflowController).
+  static const double _guideFeePerDayLkr = 10000;
 
   List<dynamic> _allDestinations = [];
   List<dynamic> _allHotels = [];
   List<dynamic> _allGuides = [];
   List<dynamic> _allVehicles = [];
+
+  // 🔥 The destinations/hotels the AI actually matched to the tourist's
+  // objective (e.g. "Nuwara Eliya"). _seedDayDefaults() prefers these over
+  // the full unfiltered catalog — previously it always cycled through
+  // _allDestinations[idx % length] regardless of what the AI matched, which
+  // is why every plan showed the same alphabetically-first destinations no
+  // matter what the tourist asked for.
+  List<dynamic> _candidateDestinations = [];
+  List<dynamic> _candidateHotels = [];
+
+  // 🔥 Per-day region plan for a multi-region itinerary, keyed by day number
+  // as a string ("1", "2", ...) — see _loadOptionsAndSeedFromAi().
+  Map<String, dynamic> _dayPlan = {};
 
   int? _selectedGuideId;
   int? _selectedVehicleId;
@@ -65,6 +86,18 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
   double _hotelCost = 0;
   double _guideCost = 0;
   double _vehicleCost = 0;
+  // 🔥 Total driving distance across the whole trip (every consecutive
+  // destination pair, day by day), in km — summed from the same
+  // distance-quote calls that already price the vehicle. Previously computed
+  // internally but never actually shown to the tourist anywhere.
+  double _totalDistanceKm = 0;
+  // 🔥 How many of the trip's stops actually had saved GPS coordinates to
+  // route between (destinations missing Latitude/Longitude in the admin
+  // panel are silently skipped by _buildFullRoutePoints()). Tracked so the
+  // cost card can tell the tourist WHY distance is unavailable — "these
+  // destinations have no coordinates yet" is a very different problem from
+  // "the distance service failed" and needs a different fix.
+  int _routePointCount = 0;
   double get _totalCost => _hotelCost + _guideCost + _vehicleCost;
 
   @override
@@ -77,6 +110,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
   void dispose() {
     for (final d in _days) {
       d.activitiesController.dispose();
+      d.destinationSearchController.dispose();
     }
     super.dispose();
   }
@@ -104,6 +138,20 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       _allGuides = results[2];
       _allVehicles = results[3];
 
+      final aiDestinations = widget.aiResult["candidate_destinations"];
+      _candidateDestinations = aiDestinations is List ? aiDestinations : [];
+      final aiHotels = widget.aiResult["candidate_hotels"];
+      _candidateHotels = aiHotels is List ? aiHotels : [];
+
+      // 🔥 Multi-region itinerary support — "5 day trip. 1 day - colombo,
+      // 2 day - kandy, ..." carries a per-day region plan keyed by day
+      // number ("1", "2", ...). _seedDayDefaults() prefers this over the
+      // flat _candidateDestinations/_candidateHotels rotation when present,
+      // so each day gets ITS OWN region's destination/hotel instead of every
+      // day repeating the single best-matching region for the whole trip.
+      final aiDayPlan = widget.aiResult["day_plan"];
+      _dayPlan = aiDayPlan is Map ? Map<String, dynamic>.from(aiDayPlan) : {};
+
       final proposedItinerary =
           widget.aiResult["proposed_itinerary"] as List<dynamic>?;
       if (proposedItinerary != null && proposedItinerary.isNotEmpty) {
@@ -130,35 +178,39 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       // available. Only honour the AI's match if that guide/vehicle is still in _allGuides/
       // _allVehicles (i.e. still available) — an AI suggestion made earlier could since have
       // been assigned to another trip.
+      // 🔥 Fix: when the AI couldn't match a guide/vehicle in the tourist's
+      // region (matched_guide/matched_vehicle == null), this used to
+      // silently fall back to "_allGuides.first"/"_allVehicles.first" — i.e.
+      // whichever guide/vehicle happens to be first in the whole catalog,
+      // often from a completely unrelated region (e.g. a Galle guide shown
+      // for an Ampara trip). That's confusing next to the "No guide/vehicle
+      // could be matched" warning banner, which is telling the truth while
+      // the UI pre-selects something misleading anyway. Now it's left
+      // unselected (null) so the tourist explicitly picks one themselves
+      // from "Customise trip plan" below if the AI found nothing suitable.
       final matchedGuide = widget.aiResult["matched_guide"];
       final matchedGuideId = (matchedGuide is Map && matchedGuide["id"] != null)
           ? matchedGuide["id"] as int
           : null;
-      if (matchedGuideId != null &&
-          _allGuides.any((g) => g["id"] == matchedGuideId)) {
-        _selectedGuideId = matchedGuideId;
-      } else if (_allGuides.isNotEmpty) {
-        _selectedGuideId = _allGuides.first["id"];
-      } else {
-        _selectedGuideId = null;
-      }
+      _selectedGuideId =
+          (matchedGuideId != null &&
+              _allGuides.any((g) => g["id"] == matchedGuideId))
+          ? matchedGuideId
+          : null;
 
       final matchedVehicle = widget.aiResult["matched_vehicle"];
       final matchedVehicleId =
           (matchedVehicle is Map && matchedVehicle["id"] != null)
           ? matchedVehicle["id"] as int
           : null;
-      if (matchedVehicleId != null &&
-          _allVehicles.any((v) => v["id"] == matchedVehicleId)) {
-        _selectedVehicleId = matchedVehicleId;
-      } else if (_allVehicles.isNotEmpty) {
-        _selectedVehicleId = _allVehicles.first["id"];
-      } else {
-        _selectedVehicleId = null;
-      }
+      _selectedVehicleId =
+          (matchedVehicleId != null &&
+              _allVehicles.any((v) => v["id"] == matchedVehicleId))
+          ? matchedVehicleId
+          : null;
     } catch (e) {
       if (mounted) {
-        setState(() => _error = "We couldn't load the trip options.");
+        setState(() => _error = "We couldn't load the tour options.");
       }
     } finally {
       if (mounted) setState(() => _isLoadingLists = false);
@@ -167,12 +219,51 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
   }
 
   void _seedDayDefaults(_DayPlan day, int idx) {
-    if (_allDestinations.isNotEmpty) {
+    // 🔥 Multi-region itinerary: if the objective spelled out a region for
+    // THIS specific day ("3 day - ampara"), use that day's own matched
+    // destination/hotel instead of the single flat (whole-trip) candidate
+    // list below — otherwise every day ends up with the same region's
+    // destination, which is exactly the bug this fixes.
+    final dayInfo = _dayPlan["${idx + 1}"];
+    if (dayInfo is Map) {
+      final dayDests = dayInfo["destinations"];
+      if (dayDests is List && dayDests.isNotEmpty) {
+        final pick = dayDests[0];
+        if (pick is Map && pick["id"] != null) {
+          day.destinationIds.add(pick["id"] as int);
+        }
+      }
+      final dayHotels = dayInfo["hotels"];
+      if (dayHotels is List && dayHotels.isNotEmpty) {
+        final pick = dayHotels[0];
+        if (pick is Map && pick["id"] != null) {
+          day.hotelId = pick["id"] as int;
+        }
+      }
+      if (day.destinationIds.isNotEmpty || day.hotelId != null) return;
+    }
+
+    // Prefer what the AI actually matched to the tourist's objective (e.g. the
+    // "Nuwara Eliya" destinations/hotels). Only fall back to cycling through
+    // the full unfiltered catalog if the AI didn't match anything at all.
+    if (_candidateDestinations.isNotEmpty) {
+      final pick =
+          _candidateDestinations[idx % _candidateDestinations.length];
+      if (pick is Map && pick["id"] != null) {
+        day.destinationIds.add(pick["id"] as int);
+      }
+    } else if (_allDestinations.isNotEmpty) {
       day.destinationIds.add(
         _allDestinations[idx % _allDestinations.length]["id"],
       );
     }
-    if (_allHotels.isNotEmpty) {
+
+    if (_candidateHotels.isNotEmpty) {
+      final pick = _candidateHotels[idx % _candidateHotels.length];
+      if (pick is Map && pick["id"] != null) {
+        day.hotelId = pick["id"] as int;
+      }
+    } else if (_allHotels.isNotEmpty) {
       day.hotelId = _allHotels[idx % _allHotels.length]["id"];
     }
   }
@@ -187,7 +278,11 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
   }
 
   void _removeDay(int index) {
-    setState(() => _days.removeAt(index).activitiesController.dispose());
+    setState(() {
+      final removed = _days.removeAt(index);
+      removed.activitiesController.dispose();
+      removed.destinationSearchController.dispose();
+    });
     _recalculateAll();
   }
 
@@ -217,12 +312,37 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
     );
     if (dest == null) return;
 
+    // 🔥 Fix: this always used `dayIndex` as "days from today" (day 0 = today,
+    // day 1 = tomorrow, ...), completely ignoring the trip's actual start
+    // date — so picking a start date never changed the forecast shown, and a
+    // trip starting next month still showed "today's" weather for Day 1.
+    // Now it's computed from the real calendar date (start date + day
+    // offset). The backend's forecast API only covers 5 days ahead, so this
+    // is clamped to that range; beyond it, no forecast is shown rather than
+    // a wrong one.
+    final targetDate = _tripStartDate != null
+        ? DateTime(
+            _tripStartDate!.year,
+            _tripStartDate!.month,
+            _tripStartDate!.day,
+          ).add(Duration(days: dayIndex))
+        : DateTime.now().add(Duration(days: dayIndex));
+    final today = DateTime.now();
+    final daysFromNow = targetDate
+        .difference(DateTime(today.year, today.month, today.day))
+        .inDays;
+
+    if (daysFromNow < 0 || daysFromNow > 5) {
+      if (mounted) setState(() => day.weather = null);
+      return;
+    }
+
     setState(() => day.loadingWeather = true);
     try {
       final weather = await _apiService.getWeatherForDay(
         (dest["latitude"] as num).toDouble(),
         (dest["longitude"] as num).toDouble(),
-        dayIndex, // day 0 = today, day 1 = tomorrow, etc.
+        daysFromNow,
       );
       if (mounted) setState(() => day.weather = weather);
     } finally {
@@ -249,26 +369,16 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
         ? _guideFeePerDayLkr * _days.length
         : 0.0;
 
-    // Vehicle: distance-based charge along the whole route (day 1's stops, then day 2's, ...).
+    // Vehicle: distance-based charge along the whole route (day 1's stops +
+    // hotel, then day 2's, ...). 🔥 Now includes each day's hotel (not just
+    // destinations) via _buildFullRoutePoints(), so the km total matches
+    // what "View route on map" actually shows.
     double vehicleTotal = 0;
+    double distanceTotal = 0;
+    int routePointCount = 0;
     if (_selectedVehicleId != null) {
-      final points = <Map<String, double>>[];
-      for (final day in _days) {
-        for (final destId in day.destinationIds) {
-          final dest = _allDestinations.firstWhere(
-            (d) => d["id"] == destId,
-            orElse: () => null,
-          );
-          if (dest != null &&
-              dest["latitude"] != null &&
-              dest["longitude"] != null) {
-            points.add({
-              "lat": (dest["latitude"] as num).toDouble(),
-              "lon": (dest["longitude"] as num).toDouble(),
-            });
-          }
-        }
-      }
+      final points = _buildFullRoutePoints();
+      routePointCount = points.length;
       for (int i = 0; i < points.length - 1; i++) {
         final quote = await _apiService.getDistanceQuote(
           vehicleId: _selectedVehicleId!,
@@ -280,6 +390,12 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
         if (quote != null && quote["totalVehicleCharge"] != null) {
           vehicleTotal += (quote["totalVehicleCharge"] as num).toDouble();
         }
+        // 🔥 Surface the real distance too (used to be computed and thrown
+        // away — only the LKR charge came out of this loop, so there was no
+        // way for the tourist to actually see the km anywhere).
+        if (quote != null && quote["distanceKm"] != null) {
+          distanceTotal += (quote["distanceKm"] as num).toDouble();
+        }
       }
     }
 
@@ -288,16 +404,23 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       _hotelCost = hotelTotal;
       _guideCost = guideTotal;
       _vehicleCost = vehicleTotal;
+      _totalDistanceKm = distanceTotal;
+      _routePointCount = routePointCount;
     });
   }
 
   bool get _anyBadWeather =>
       _days.any((d) => d.weather != null && d.weather!["isRainy"] == true);
 
-  // ---------------- MAP ----------------
-
-  Future<void> _viewRouteOnMap() async {
-    final points = <dynamic>[];
+  // 🔥 Builds the full ordered list of coordinates for the whole trip — each
+  // day's destination(s) followed by that day's hotel (check-in point) —
+  // shared by the "View route on map" button and the real km/vehicle-charge
+  // calculation, so both agree on the same route. Hotels only have saved
+  // coordinates once an admin sets them (most don't yet, since Hotel never
+  // had lat/long before), so a hotel without them is simply skipped rather
+  // than breaking the route.
+  List<Map<String, double>> _buildFullRoutePoints() {
+    final points = <Map<String, double>>[];
     for (final day in _days) {
       for (final destId in day.destinationIds) {
         final dest = _allDestinations.firstWhere(
@@ -307,23 +430,46 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
         if (dest != null &&
             dest["latitude"] != null &&
             dest["longitude"] != null) {
-          points.add(dest);
+          points.add({
+            "lat": (dest["latitude"] as num).toDouble(),
+            "lon": (dest["longitude"] as num).toDouble(),
+          });
+        }
+      }
+      if (day.hotelId != null) {
+        final hotel = _allHotels.firstWhere(
+          (h) => h["id"] == day.hotelId,
+          orElse: () => null,
+        );
+        if (hotel != null &&
+            hotel["latitude"] != null &&
+            hotel["longitude"] != null) {
+          points.add({
+            "lat": (hotel["latitude"] as num).toDouble(),
+            "lon": (hotel["longitude"] as num).toDouble(),
+          });
         }
       }
     }
+    return points;
+  }
+
+  // ---------------- MAP ----------------
+
+  Future<void> _viewRouteOnMap() async {
+    final points = _buildFullRoutePoints();
 
     if (points.isEmpty) {
       showToast(context, "Select at least one destination to view the route.");
       return;
     }
 
-    final origin = "${points.first["latitude"]},${points.first["longitude"]}";
-    final destination =
-        "${points.last["latitude"]},${points.last["longitude"]}";
+    final origin = "${points.first["lat"]},${points.first["lon"]}";
+    final destination = "${points.last["lat"]},${points.last["lon"]}";
     final waypoints = points.length > 2
         ? points
               .sublist(1, points.length - 1)
-              .map((d) => "${d["latitude"]},${d["longitude"]}")
+              .map((p) => "${p["lat"]},${p["lon"]}")
               .join("|")
         : "";
 
@@ -333,6 +479,85 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       "&destination=$destination"
       "${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}"
       "&travelmode=driving",
+    );
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      showToast(context, "Could not open the map.", tone: Tone.danger);
+    }
+  }
+
+  // 🔥 Per-day "open in Maps" link — opens just that day's destination(s)
+  // (a single pin if there's one, or a mini driving route if there are
+  // several), using their real lat/long. Separate from _viewRouteOnMap()
+  // above, which covers the whole trip across every day.
+  Future<void> _openDestinationsOnMap(Set<int> destinationIds) async {
+    final points = _allDestinations
+        .where(
+          (d) =>
+              destinationIds.contains(d["id"]) &&
+              d["latitude"] != null &&
+              d["longitude"] != null,
+        )
+        .toList();
+
+    if (points.isEmpty) {
+      showToast(context, "No location data for this destination yet.");
+      return;
+    }
+
+    final Uri url;
+    if (points.length == 1) {
+      url = Uri.parse(
+        "https://www.google.com/maps/search/?api=1"
+        "&query=${points.first["latitude"]},${points.first["longitude"]}",
+      );
+    } else {
+      final origin = "${points.first["latitude"]},${points.first["longitude"]}";
+      final destination =
+          "${points.last["latitude"]},${points.last["longitude"]}";
+      final waypoints = points.length > 2
+          ? points
+                .sublist(1, points.length - 1)
+                .map((d) => "${d["latitude"]},${d["longitude"]}")
+                .join("|")
+          : "";
+      url = Uri.parse(
+        "https://www.google.com/maps/dir/?api=1"
+        "&origin=$origin"
+        "&destination=$destination"
+        "${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}"
+        "&travelmode=driving",
+      );
+    }
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      showToast(context, "Could not open the map.", tone: Tone.danger);
+    }
+  }
+
+  // 🔥 Hotels don't have lat/long saved in the DB (only name + address), so
+  // this opens a Google Maps text search instead of a coordinate pin.
+  Future<void> _openHotelOnMap(int? hotelId) async {
+    if (hotelId == null) return;
+    final hotel = _allHotels.firstWhere(
+      (h) => h["id"] == hotelId,
+      orElse: () => null,
+    );
+    if (hotel == null) return;
+
+    final query = Uri.encodeComponent(
+      [
+        hotel["name"],
+        hotel["address"],
+        hotel["region"],
+      ].where((s) => s != null && (s as String).isNotEmpty).join(", "),
+    );
+    final url = Uri.parse(
+      "https://www.google.com/maps/search/?api=1&query=$query",
     );
 
     if (await canLaunchUrl(url)) {
@@ -357,6 +582,10 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
         _tripStartDate = picked;
         _error = null;
       });
+      // 🔥 Picking a start date used to never refresh anything — the weather
+      // shown per day stayed stuck on "today + day index" until the screen
+      // happened to reload. Re-check weather for the real dates now.
+      await _recalculateAll();
     }
   }
 
@@ -372,7 +601,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       return;
     }
     if (_tripStartDate == null) {
-      setState(() => _error = "Please select a trip start date.");
+      setState(() => _error = "Please select a tour start date.");
       return;
     }
 
@@ -416,7 +645,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = "We couldn't submit your trip plan. Please try again.",
+          () => _error = "We couldn't submit your tour plan. Please try again.",
         );
       }
     } finally {
@@ -658,7 +887,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
             AppButton(
               label: _customizing
                   ? "Hide customisation"
-                  : "Customise trip plan",
+                  : "Customise tour plan",
               icon: _customizing
                   ? Icons.expand_less_rounded
                   : Icons.tune_rounded,
@@ -896,12 +1125,55 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    names.isEmpty ? "No destination selected" : names,
-                    style: context.text.titleSmall,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          names.isEmpty ? "No destination selected" : names,
+                          style: context.text.titleSmall,
+                        ),
+                      ),
+                      // 🔥 Opens this day's destination(s) in Google Maps
+                      // (real lat/long — a single pin or a mini route).
+                      if (d.destinationIds.isNotEmpty)
+                        InkWell(
+                          onTap: () => _openDestinationsOnMap(
+                            d.destinationIds,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.map_outlined,
+                              size: 18,
+                              color: context.scheme.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   if (hotelName != null)
-                    Text("Stay: $hotelName", style: context.text.bodySmall),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Stay: $hotelName", style: context.text.bodySmall),
+                        const SizedBox(width: Space.xs),
+                        // 🔥 Hotels have no lat/long saved, so this opens a
+                        // Google Maps text search on the hotel's name/address.
+                        InkWell(
+                          onTap: () => _openHotelOnMap(d.hotelId),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Icon(
+                            Icons.map_outlined,
+                            size: 14,
+                            color: context.scheme.primary.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   if (d.activitiesController.text.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
@@ -937,7 +1209,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Trip start date", style: context.text.titleSmall),
+                Text("Tour start date", style: context.text.titleSmall),
                 Text(
                   hasDate
                       ? _dateLabel(_tripStartDate!)
@@ -1040,7 +1312,7 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Estimated trip cost", style: context.text.titleMedium),
+          Text("Estimated tour cost", style: context.text.titleMedium),
           const SizedBox(height: Space.md),
           if (_isRecalculating)
             const Column(
@@ -1056,6 +1328,60 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
             _costRow("Hotel(s)", _hotelCost),
             _costRow("Guide (estimated)", _guideCost),
             _costRow("Vehicle (distance-based)", _vehicleCost),
+            // 🔥 The real driving distance was always being calculated
+            // (OpenRouteService, per consecutive destination pair) to price
+            // the vehicle, but was never actually shown — only used
+            // internally. Now surfaced as its own row.
+            if (_totalDistanceKm > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Total distance",
+                      style: context.text.bodySmall!.copyWith(
+                        color: context.palette.textTertiary,
+                      ),
+                    ),
+                    Text(
+                      "${_totalDistanceKm.toStringAsFixed(1)} km",
+                      style: context.text.bodySmall!.copyWith(
+                        color: context.palette.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // 🔥 Two different causes now get two different messages — they
+            // need two different fixes, so lumping them together as one
+            // generic "unavailable" was actively misleading:
+            //  - under 2 route points = these destinations/hotels have no
+            //    saved GPS coordinates to route between at all (an admin
+            //    data gap — fix it in Admin > Destinations/Hotels).
+            //  - 2+ points but still LKR 0 = the coordinates are fine, the
+            //    OpenRouteService call itself is failing (check the backend
+            //    console for the DistanceService warning).
+            else if (_selectedVehicleId != null && _routePointCount < 2)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Text(
+                  "Distance unavailable — the selected destinations/hotels don't have saved GPS coordinates yet.",
+                  style: context.text.bodySmall!.copyWith(
+                    color: context.palette.textTertiary,
+                  ),
+                ),
+              )
+            else if (_selectedVehicleId != null && _routePointCount >= 2)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Text(
+                  "Distance service unavailable right now — vehicle charge is an estimate only.",
+                  style: context.text.bodySmall!.copyWith(
+                    color: context.palette.textTertiary,
+                  ),
+                ),
+              ),
             const Divider(height: Space.xl),
             _costRow("Total", _totalCost, bold: true),
           ],
@@ -1235,16 +1561,49 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
               ),
             ),
             const SizedBox(height: Space.sm),
-            Wrap(
-              spacing: Space.sm,
-              runSpacing: Space.sm,
-              children: [
-                for (final d in _allDestinations)
-                  FilterChip(
+            // 🔥 The old flat Wrap showed EVERY destination in the catalog as
+            // a chip, all the time — dozens of unrelated places to scroll
+            // past. Now nothing is listed until the tourist searches: typing
+            // narrows to matching destinations, tapping one adds it, and the
+            // search clears back to just the (removable) selected chips.
+            SearchField(
+              controller: day.destinationSearchController,
+              hint: "Search destinations to add…",
+              onSearch: () => setState(
+                () => day.destinationSearchQuery =
+                    day.destinationSearchController.text.trim().toLowerCase(),
+              ),
+            ),
+            const SizedBox(height: Space.sm),
+            // 🔥 Max 3 destinations per day — an unbounded number of stops
+            // crammed into one day isn't a realistic itinerary and also
+            // blew up the route/cost calculation.
+            Builder(
+              builder: (context) {
+                final query = day.destinationSearchQuery;
+                final atLimit = day.destinationIds.length >= 3;
+                final selected = _allDestinations
+                    .where((d) => day.destinationIds.contains(d["id"]))
+                    .toList();
+                final searchResults = query.isEmpty
+                    ? <dynamic>[]
+                    : _allDestinations
+                          .where(
+                            (d) =>
+                                !day.destinationIds.contains(d["id"]) &&
+                                (d["name"] as String? ?? "")
+                                    .toLowerCase()
+                                    .contains(query),
+                          )
+                          .toList();
+
+                Widget chip(dynamic d) {
+                  final isSelected = day.destinationIds.contains(d["id"]);
+                  return FilterChip(
                     label: Text(d["name"] ?? ""),
-                    selected: day.destinationIds.contains(d["id"]),
+                    selected: isSelected,
                     showCheckmark: false,
-                    avatar: day.destinationIds.contains(d["id"])
+                    avatar: isSelected
                         ? Icon(
                             Icons.check_rounded,
                             size: 16,
@@ -1253,22 +1612,71 @@ class _TripPlanReviewScreenState extends State<TripPlanReviewScreen> {
                         : null,
                     selectedColor: context.palette.primarySoft,
                     side: BorderSide(
-                      color: day.destinationIds.contains(d["id"])
+                      color: isSelected
                           ? context.scheme.primary
                           : context.palette.border,
                     ),
-                    onSelected: (checked) {
-                      setState(() {
-                        if (checked) {
-                          day.destinationIds.add(d["id"]);
-                        } else {
-                          day.destinationIds.remove(d["id"]);
-                        }
-                      });
-                      _recalculateAll();
-                    },
-                  ),
-              ],
+                    onSelected: (!isSelected && atLimit)
+                        ? null
+                        : (checked) {
+                            setState(() {
+                              if (checked) {
+                                day.destinationIds.add(d["id"]);
+                                // Selected — clear the search so the list
+                                // goes back to just the selected chips.
+                                day.destinationSearchController.clear();
+                                day.destinationSearchQuery = '';
+                              } else {
+                                day.destinationIds.remove(d["id"]);
+                              }
+                            });
+                            _recalculateAll();
+                          },
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (selected.isNotEmpty)
+                      Wrap(
+                        spacing: Space.sm,
+                        runSpacing: Space.sm,
+                        children: [for (final d in selected) chip(d)],
+                      ),
+                    if (selected.isNotEmpty && query.isNotEmpty)
+                      const SizedBox(height: Space.sm),
+                    if (atLimit && query.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: Space.sm),
+                        child: Text(
+                          "Max 3 destinations per day reached. Remove one to add another.",
+                          style: context.text.bodySmall!.copyWith(
+                            color: context.palette.textSecondary,
+                          ),
+                        ),
+                      )
+                    else if (query.isNotEmpty && searchResults.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Space.sm,
+                        ),
+                        child: Text(
+                          "No destinations match \"${day.destinationSearchController.text}\".",
+                          style: context.text.bodySmall!.copyWith(
+                            color: context.palette.textSecondary,
+                          ),
+                        ),
+                      )
+                    else if (query.isNotEmpty)
+                      Wrap(
+                        spacing: Space.sm,
+                        runSpacing: Space.sm,
+                        children: [for (final d in searchResults) chip(d)],
+                      ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: Space.lg),
             _buildPickerTile(

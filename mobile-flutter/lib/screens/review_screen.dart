@@ -157,7 +157,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           label: "Your experience",
           controller: _commentController,
           maxLines: 4,
-          hint: "Tell us about your trip…",
+          hint: "Tell us about your tour…",
           textCapitalization: TextCapitalization.sentences,
         ),
         const SizedBox(height: Space.lg),

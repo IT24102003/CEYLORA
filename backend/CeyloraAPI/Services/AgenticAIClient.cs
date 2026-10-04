@@ -14,9 +14,9 @@ namespace CeyloraAPI.Services
             _baseUrl = config["AgenticAI:BaseUrl"] ?? "http://localhost:8001";
         }
 
-        public async Task<string> RunWorkflowAsync(string objective, int? bookingId)
+        public async Task<string> RunWorkflowAsync(string objective, int? bookingId, string? touristCountry = null)
         {
-            var payload = new { objective, booking_id = bookingId };
+            var payload = new { objective, booking_id = bookingId, tourist_country = touristCountry };
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 

@@ -5,6 +5,8 @@ namespace CeyloraAPI.DTOs
         public string Name { get; set; } = string.Empty;
         public string Region { get; set; } = string.Empty;
         public string? Address { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
         public int StarRating { get; set; }
         public decimal PricePerNight { get; set; }
         public int RoomsAvailable { get; set; }

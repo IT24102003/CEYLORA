@@ -33,7 +33,7 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
   Future<void> _generatePlan() async {
     final objective = _objectiveController.text.trim();
     if (objective.isEmpty) {
-      setState(() => _error = "Tell us a little about the trip you'd like.");
+      setState(() => _error = "Tell us a little about the tour you'd like.");
       return;
     }
 
@@ -67,7 +67,7 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Plan a trip")),
+      appBar: AppBar(title: const Text("Plan a tour")),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(Space.xl),
@@ -98,12 +98,12 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
             ),
             const SizedBox(height: Space.xxl),
             AppTextField(
-              label: "Your trip",
+              label: "Your tour",
               controller: _objectiveController,
               maxLines: 4,
               enabled: !_isSubmitting,
               error: _error,
-              hint: "e.g. 3-day trip to Kandy for 2 people, interested in nature and culture",
+              hint: "e.g. 3-day tour to Kandy for 2 people, interested in nature and culture",
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) {
                 if (_error != null) setState(() => _error = null);
@@ -129,8 +129,8 @@ class _TripPlannerScreenState extends State<TripPlannerScreen> {
             const SizedBox(height: Space.xxl),
             AppButton(
               label: _isSubmitting
-                  ? "Planning your trip…"
-                  : "Generate trip plan",
+                  ? "Planning your tour…"
+                  : "Generate tour plan",
               icon: Icons.route_rounded,
               loading: _isSubmitting,
               onPressed: _generatePlan,

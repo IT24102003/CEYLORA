@@ -116,7 +116,16 @@ class _VehicleOwnerHomeScreenState extends State<VehicleOwnerHomeScreen> {
           error: _error,
           onRetry: _loadAll,
           skeleton: const SkeletonList(count: 4, leading: false),
-          child: _buildBody(),
+          // 🔥 Fix: same bug as the Guide dashboard — `child:` is evaluated
+          // immediately when this widget is built, no matter whether
+          // StateView ends up showing the loading/error view instead. So
+          // `_buildBody()` (which does `_ownerProfile!`) used to run on the
+          // very first build too, before `_loadAll()` finished and
+          // `_ownerProfile` was still null — crashing with "Null check
+          // operator used on a null value". Only call it once loaded.
+          child: _ownerProfile != null
+              ? _buildBody()
+              : const SizedBox.shrink(),
         ),
       ),
     );
@@ -192,7 +201,7 @@ class _VehicleOwnerHomeScreenState extends State<VehicleOwnerHomeScreen> {
                     "${v["capacity"]} seats"
                     "${v["manufacturerYear"] != null ? ' · ${v["manufacturerYear"]}' : ''}"
                     " · ★ ${((v["rating"] as num?) ?? 0).toStringAsFixed(1)}\n"
-                    "${v["isAvailable"] == true ? "Available for trips" : "Hidden from new trips"}",
+                    "${v["isAvailable"] == true ? "Available for tours" : "Hidden from new tours"}",
                   ),
                   isThreeLine: true,
                   value: v["isAvailable"] == true,
@@ -215,18 +224,18 @@ class _VehicleOwnerHomeScreenState extends State<VehicleOwnerHomeScreen> {
                 "Estimated using your vehicle's per-km rate × ${(_earnings!["estimatedKmPerDay"] as num).toStringAsFixed(0)} km/day assumed driving distance.",
           ),
 
-        // ---------------- ASSIGNED TRIPS ----------------
+        // ---------------- ASSIGNED TOURS ----------------
         const SizedBox(height: Space.xxl),
         SectionHeader(
-          "Assigned trips${assigned.isEmpty ? "" : " (${assigned.length})"}",
+          "Assigned tours${assigned.isEmpty ? "" : " (${assigned.length})"}",
         ),
         const SizedBox(height: Space.sm),
         if (assigned.isEmpty)
           const AppCard(
             child: EmptyState(
               icon: Icons.luggage_rounded,
-              title: "No trips assigned yet",
-              message: "Assigned trips will show up here.",
+              title: "No tours assigned yet",
+              message: "Assigned tours will show up here.",
             ),
           )
         else
@@ -258,13 +267,13 @@ class _VehicleOwnerHomeScreenState extends State<VehicleOwnerHomeScreen> {
               ),
             ),
 
-        // ---------------- COMPLETED TRIPS ----------------
+        // ---------------- COMPLETED TOURS ----------------
         const SizedBox(height: Space.lg),
-        const SectionHeader("Completed trips"),
+        const SectionHeader("Completed tours"),
         const SizedBox(height: Space.sm),
         if (completed.isEmpty)
           Text(
-            "No completed trips yet.",
+            "No completed tours yet.",
             style: context.text.bodyMedium!.copyWith(
               color: context.palette.textTertiary,
             ),

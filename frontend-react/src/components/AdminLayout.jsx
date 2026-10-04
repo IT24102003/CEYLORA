@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  BarChart3, Bot, FileText, CalendarCheck, Car, Compass, Hotel, LogOut, MapPin, Menu as MenuIcon,
-  Moon, Package, ShieldCheck, Star, Sun,
+  BarChart3, Bot, FileText, CalendarCheck, Car, Compass, CreditCard, Hotel, LogOut, MapPin, Menu as MenuIcon,
+  Moon, Package, ShieldCheck, Star, Sun, Users,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../lib/hooks";
@@ -22,6 +22,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/bookings", label: "Bookings", short: "Bookings", icon: CalendarCheck },
       { to: "/verifications", label: "Verifications", short: "Verify", icon: ShieldCheck },
+      { to: "/payments", label: "Payments", short: "Payments", icon: CreditCard },
     ],
   },
   {
@@ -35,6 +36,7 @@ const NAV_GROUPS = [
   {
     label: "Network",
     items: [
+      { to: "/users", label: "Users", short: "Users", icon: Users },
       { to: "/guides", label: "Guides", short: "Guides", icon: Compass },
       { to: "/vehicles", label: "Vehicles", short: "Vehicles", icon: Car },
     ],

@@ -121,7 +121,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
-app.UseHttpsRedirection();
+// 🔥 Removed app.UseHttpsRedirection() — it was forcing every plain-HTTP
+// request to redirect to https://localhost:7267. That redirect works fine
+// from Chrome (same machine, "localhost" means the dev machine itself), but
+// breaks completely from the Android emulator: there, "localhost" refers to
+// the EMULATOR'S OWN loopback, not the host PC, so the redirect target is
+// unreachable (and the self-signed dev cert isn't trusted there either).
+// That's exactly why trip planning (and anything else hitting the backend)
+// failed only on Android, never on Chrome. The Flutter app always talks to
+// the plain-HTTP port 5220 anyway (see ApiService.baseUrl), so this redirect
+// was never actually wanted here.
 
 app.MapControllers();
 

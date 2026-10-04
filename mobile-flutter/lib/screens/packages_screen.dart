@@ -76,7 +76,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 isEmpty: _packages.isEmpty,
                 emptyIcon: Icons.luggage_rounded,
                 emptyTitle: "No packages found",
-                emptyMessage: "Try a different search, or plan a custom trip with AI from Home.",
+                emptyMessage: "Try a different search, or plan a custom tour with AI from Home.",
                 child: ListView.separated(
                   padding: const EdgeInsets.all(Space.lg),
                   itemCount: _packages.length,

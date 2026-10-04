@@ -94,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: Space.xs),
                         Text(
-                          "Create a traveller account to plan and book trips.",
+                          "Create a traveller account to plan and book tours.",
                           style: context.text.bodyLarge!.copyWith(
                             color: p.textSecondary,
                           ),
@@ -209,7 +209,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _RoleCard(
                           icon: Icons.hiking_rounded,
                           title: "Become a guide",
-                          subtitle: "Lead trips and share your region.",
+                          subtitle: "Lead tours and share your region.",
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -221,7 +221,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _RoleCard(
                           icon: Icons.directions_car_rounded,
                           title: "Register a vehicle",
-                          subtitle: "List your vehicle for tourist trips.",
+                          subtitle: "List your vehicle for tourist tours.",
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(

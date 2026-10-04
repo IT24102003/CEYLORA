@@ -10,10 +10,13 @@ async def validation_node(state: WorkflowState) -> WorkflowState:
     """
     errors = []
 
-    if not state.get("matched_guide") or "No available" in str(state["matched_guide"]):
+    # matched_guide/matched_vehicle are now the real matched record (a dict)
+    # or None if nobody was available — no more "No available" text to sniff
+    # out of a summary string.
+    if not state.get("matched_guide"):
         errors.append("No guide could be matched.")
 
-    if not state.get("matched_vehicle") or "No available" in str(state["matched_vehicle"]):
+    if not state.get("matched_vehicle"):
         errors.append("No vehicle could be matched.")
 
     if not state.get("candidate_destinations"):

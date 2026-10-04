@@ -96,7 +96,7 @@ class EarningsCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text("Completed trips", style: context.text.bodySmall),
+                  Text("Completed tours", style: context.text.bodySmall),
                   const SizedBox(height: 2),
                   Text("$trips", style: context.text.headlineSmall),
                 ],

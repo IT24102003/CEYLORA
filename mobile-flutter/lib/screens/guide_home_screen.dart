@@ -80,9 +80,9 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
   Future<void> _startTrip(int assignmentId) async {
     final ok = await confirmSheet(
       context,
-      title: "Start this trip?",
+      title: "Start this tour?",
       message: "The booking will be marked On Going and the tourist will be notified.",
-      confirmLabel: "Start trip",
+      confirmLabel: "Start tour",
     );
     if (!ok) return;
     setState(() => _busyAssignmentId = assignmentId);
@@ -91,14 +91,14 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
       if (mounted) {
         showToast(
           context,
-          "Trip started — status is now On Going.",
+          "Tour started — status is now On Going.",
           tone: Tone.success,
         );
       }
       await _loadAll(silent: true);
     } catch (e) {
       if (mounted) {
-        showToast(context, "Failed to start trip.", tone: Tone.danger);
+        showToast(context, "Failed to start tour.", tone: Tone.danger);
       }
     } finally {
       if (mounted) setState(() => _busyAssignmentId = null);
@@ -108,15 +108,15 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
   Future<void> _endTrip(int assignmentId) async {
     final ok = await confirmSheet(
       context,
-      title: "End this trip?",
-      message: "This marks the trip as completed and lets the tourist leave a review.",
-      confirmLabel: "End trip",
+      title: "End this tour?",
+      message: "This marks the tour as completed and lets the tourist leave a review.",
+      confirmLabel: "End tour",
     );
     if (!ok) return;
     setState(() => _busyAssignmentId = assignmentId);
     try {
       await _apiService.endTrip(assignmentId);
-      if (mounted) showToast(context, "Trip ended.", tone: Tone.success);
+      if (mounted) showToast(context, "Tour ended.", tone: Tone.success);
       await _loadAll(silent: true);
     } catch (e) {
       if (mounted) {
@@ -162,7 +162,17 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
           error: _error,
           onRetry: _loadAll,
           skeleton: const SkeletonList(count: 4, leading: false),
-          child: _buildBody(),
+          // 🔥 Fix: `_buildBody()` does `_guideProfile!` — but a widget passed as an
+          // argument (like `child:` here) is evaluated IMMEDIATELY, regardless of
+          // whether StateView ends up showing it or the loading/error view instead.
+          // So `_buildBody()` used to run on every single build, including the very
+          // first one (before `_loadAll()` finishes and `_guideProfile` is still
+          // null) — crashing with "Null check operator used on a null value" before
+          // the loading skeleton ever had a chance to show. Only call it once the
+          // profile has actually loaded.
+          child: _guideProfile != null
+              ? _buildBody()
+              : const SizedBox.shrink(),
         ),
       ),
     );
@@ -201,7 +211,7 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
             const SizedBox(width: Space.md),
             Expanded(
               child: StatTile(
-                label: "Completed trips",
+                label: "Completed tours",
                 value:
                     "${_earnings?["totalCompletedTrips"] ?? completed.length}",
                 icon: Icons.flag_rounded,
@@ -225,7 +235,7 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
             subtitle: Text(
               available
                   ? "You're visible to the matching system."
-                  : "You're hidden from new trips.",
+                  : "You're hidden from new tours.",
             ),
             value: available,
             onChanged: _isUpdatingAvailability ? null : _toggleAvailability,
@@ -286,17 +296,17 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
             ),
         ],
 
-        // ---------------- ASSIGNED TRIPS ----------------
+        // ---------------- ASSIGNED TOURS ----------------
         const SizedBox(height: Space.xxl),
         SectionHeader(
-          "Assigned trips${assigned.isEmpty ? "" : " (${assigned.length})"}",
+          "Assigned tours${assigned.isEmpty ? "" : " (${assigned.length})"}",
         ),
         const SizedBox(height: Space.sm),
         if (assigned.isEmpty)
           const AppCard(
             child: EmptyState(
               icon: Icons.luggage_rounded,
-              title: "No trips assigned yet",
+              title: "No tours assigned yet",
               message:
                   "Check back once the admin approves a plan that matches you.",
             ),
@@ -308,13 +318,13 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
               child: FadeInUp(index: i, child: _assignedCard(assigned[i])),
             ),
 
-        // ---------------- COMPLETED TRIPS ----------------
+        // ---------------- COMPLETED TOURS ----------------
         const SizedBox(height: Space.lg),
-        const SectionHeader("Completed trips"),
+        const SectionHeader("Completed tours"),
         const SizedBox(height: Space.sm),
         if (completed.isEmpty)
           Text(
-            "No completed trips yet.",
+            "No completed tours yet.",
             style: context.text.bodyMedium!.copyWith(
               color: context.palette.textTertiary,
             ),
@@ -357,7 +367,7 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
       ],
       earning: a["estimatedEarning"] as num?,
       footnote: status == "OnGoing" && !canEnd
-          ? "You can end this trip on or after ${a["earliestEndDate"]}."
+          ? "You can end this tour on or after ${a["earliestEndDate"]}."
           : null,
       onTap: () => Navigator.push(
         context,
@@ -374,7 +384,7 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
           ),
         if (status == "Confirmed" && a["isPaid"] == true)
           AppButton(
-            label: "Start trip",
+            label: "Start tour",
             icon: Icons.play_arrow_rounded,
             expand: false,
             compact: true,
@@ -386,7 +396,7 @@ class _GuideHomeScreenState extends State<GuideHomeScreen> {
           // Still allow the tap even when not yet allowed by date, so the guide sees the
           // exact reason from the server rather than a silently-disabled button.
           AppButton(
-            label: "End trip",
+            label: "End tour",
             icon: Icons.stop_rounded,
             expand: false,
             compact: true,

@@ -115,10 +115,25 @@ class _HomeTabState extends State<HomeTab> {
       };
       if (!mounted) return;
       _cache[cat] = list.toList();
+      // Kick off the image downloads for the whole list right now, instead of waiting for
+      // each card to actually scroll into view — this is what was causing the visible
+      // "blank then pop in" delay when the carousel auto-swiped or the user swiped.
+      _precacheImages(list);
     } catch (_) {
       if (mounted && cat == _cat) _error = "We couldn't load this right now.";
     } finally {
       if (mounted && cat == _cat) setState(() => _loading = false);
+    }
+  }
+
+  /// Warms Flutter's image cache for every item in [list] as soon as the data arrives,
+  /// so by the time a card actually scrolls into view its image is already loaded (or
+  /// well on its way) instead of starting the network fetch right as it appears.
+  void _precacheImages(List<dynamic> list) {
+    for (final item in list) {
+      final url = resolveImageUrl(item["imageUrl"] as String?);
+      if (url == null) continue;
+      precacheImage(NetworkImage(url), context).catchError((_) {});
     }
   }
 
@@ -286,7 +301,7 @@ class _HomeTabState extends State<HomeTab> {
                                       ),
                                       const SizedBox(width: Space.md),
                                       Text(
-                                        "Search places, trips…",
+                                        "Search places, tours…",
                                         style: context.text.bodyLarge!.copyWith(
                                           color: context.palette.textTertiary,
                                         ),
@@ -422,6 +437,9 @@ class _HomeTabState extends State<HomeTab> {
                             : PageView.builder(
                                 key: ValueKey(_cat),
                                 controller: _carousel,
+                                // Pre-builds the previous/next page (and starts loading their
+                                // images) ahead of time, instead of only once the swipe lands.
+                                allowImplicitScrolling: true,
                                 itemCount: (items.length / 2).ceil(),
                                 itemBuilder: (context, page) {
                                   final i = page * 2;
@@ -744,7 +762,7 @@ class _PlannerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: "Plan my trip with AI",
+      label: "Plan my tour with AI",
       excludeSemantics: true,
       child: PressScale(
         onTap: onTap,
@@ -760,23 +778,46 @@ class _PlannerCard extends StatelessWidget {
                     Row(
                       children: [
                         const Icon(
-                          Icons.route_rounded,
+                          Icons.auto_awesome_rounded,
                           size: 16,
                           color: Colors.white,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          "Trip planner",
+                          "Tour planner",
                           style: context.text.labelMedium!.copyWith(
                             color: Colors.white,
                             fontSize: 12.5,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(Radii.full),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            "AI",
+                            style: context.text.labelSmall!.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10.5,
+                              letterSpacing: 0.4,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: Space.sm),
                     Text(
-                      "Plan a trip",
+                      "Plan a tour",
                       style: context.text.titleLarge!.copyWith(
                         color: Colors.white,
                         height: 1.15,

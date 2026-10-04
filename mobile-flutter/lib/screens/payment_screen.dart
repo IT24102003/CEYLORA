@@ -176,7 +176,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: Space.sm),
             Text(
-              "If this trip hasn't been confirmed yet, our team will assign a guide and vehicle shortly.",
+              "If this tour hasn't been confirmed yet, our team will assign a guide and vehicle shortly.",
               textAlign: TextAlign.center,
               style: context.text.bodyMedium!.copyWith(
                 color: context.palette.textSecondary,

@@ -38,7 +38,11 @@ namespace CeyloraAPI.Controllers
                 if (!bookingExists) return NotFound(new { message = "Booking not found." });
             }
 
-            var rawResult = await _aiClient.RunWorkflowAsync(dto.Objective, dto.BookingId);
+            // 🔥 Pass the tourist's home country through so the AI's Action Agent can try to
+            // match a guide who speaks their language. Previously the AI workflow had no idea
+            // who was asking, so guide selection couldn't take language into account at all.
+            var touristCountry = (await _context.Users.FindAsync(CurrentUserId))?.Country;
+            var rawResult = await _aiClient.RunWorkflowAsync(dto.Objective, dto.BookingId, touristCountry);
 
             string pythonWorkflowId = "";
             string statusFromPython = "";
@@ -100,7 +104,8 @@ namespace CeyloraAPI.Controllers
         [HttpPost("preview")]
         public async Task<IActionResult> PreviewWorkflow(StartWorkflowDto dto)
         {
-            var rawResult = await _aiClient.RunWorkflowAsync(dto.Objective, dto.BookingId);
+            var touristCountry = (await _context.Users.FindAsync(CurrentUserId))?.Country;
+            var rawResult = await _aiClient.RunWorkflowAsync(dto.Objective, dto.BookingId, touristCountry);
             return Content(rawResult, "application/json");
         }
 
@@ -109,6 +114,12 @@ namespace CeyloraAPI.Controllers
         [HttpPost("submit-plan")]
         public async Task<IActionResult> SubmitPlan(SubmitTripPlanDto dto)
         {
+            // 🔥 The mobile review screen already blocks submitting without a trip start date,
+            // but that's client-side only — enforce it here too, since the AI planner can't
+            // check destination weather or compute a schedule without one.
+            if (dto.PlannedStartDate == null)
+                return BadRequest(new { message = "Please select a trip start date before submitting." });
+
             if (dto.HotelId.HasValue)
             {
                 var hotelExists = await _context.Hotels.AnyAsync(h => h.Id == dto.HotelId.Value);
@@ -495,7 +506,7 @@ namespace CeyloraAPI.Controllers
 
             if (guide != null)
             {
-                const decimal guideFeePerDay = 2500m;
+                const decimal guideFeePerDay = 10000m; // 🔥 was 2500 — business rule is LKR 10,000/day
                 var earning = guideFeePerDay * days;
                 await _notificationService.CreateAsync(guide.UserId, "New Trip Assigned!",
                     $"You've been assigned to \"{packageName}\" ({days} day(s)). " +

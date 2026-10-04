@@ -23,4 +23,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// An expired or invalid token makes every call fail with 401 — drop the session and send the admin back to sign in.
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const url = error.config?.url ?? "";
+    if (error.response?.status === 401 && !url.includes("/auth/login") && localStorage.getItem("ceylora_token")) {
+      localStorage.removeItem("ceylora_token");
+      localStorage.removeItem("ceylora_user");
+      sessionStorage.setItem("ceylora_session_expired", "1");
+      window.location.assign("/login");
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default api;
