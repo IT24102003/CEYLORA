@@ -16,7 +16,7 @@ function Stars({ rating }) {
 
 export default function ReviewsPage() {
   const [bookingId, setBookingId] = useState("");
-  const [queried, setQueried] = useState(null); // the booking id the current results belong to
+  const [queried, setQueried] = useState(null); //booking id the current results belong to
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

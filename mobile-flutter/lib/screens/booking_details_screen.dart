@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/ui/ui.dart';
 
-// Full "tap a booking, see everything" screen — shared by the Tourist (their own
+// f The full "tap a booking, see everything" screen — shared by the Tourist (their own
 // bookings), the assigned Guide, and the assigned Vehicle's Owner. What's visible is
 // decided server-side (GET /api/bookings/{id}/details).
 class BookingDetailsScreen extends StatefulWidget {

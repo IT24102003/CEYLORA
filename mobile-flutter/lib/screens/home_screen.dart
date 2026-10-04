@@ -15,8 +15,8 @@ import 'trips_screen.dart';
 import 'vehicle_owner_home_screen.dart';
 
 /// App shell: bottom navigation + one screen per tab.
-///   Tourist:               Home · Trips · Chats · Profile
-///   Guide / Vehicle owner: Home · Dashboard · Chats · Profile
+/// Tourist:Home · Trips · Chats · Profile
+/// Guide / Vehicle owner: Home · Dashboard · Chats · Profile
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
