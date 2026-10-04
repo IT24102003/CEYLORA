@@ -48,11 +48,11 @@ namespace CeyloraAPI.Controllers
 
             if (verifiedOnly)
             {
-                var unverifiedOperatorIds = await _context.VehicleOwners
-                    .Where(vo => !vo.IsVerified)
-                    .Select(vo => vo.UserId)
-                    .ToListAsync();
-                query = query.Where(v => !unverifiedOperatorIds.Contains(v.OperatorId));
+                // Was a separate round trip to pull every unverified owner's id, then an
+                // in-memory Contains() filter. A NOT EXISTS subquery does the same
+                // exclusion inside the single query below instead of a round trip of
+                // its own — one less chance to hit a slow beat on the DB connection.
+                query = query.Where(v => !_context.VehicleOwners.Any(vo => vo.UserId == v.OperatorId && !vo.IsVerified));
             }
 
             if (!string.IsNullOrWhiteSpace(region))

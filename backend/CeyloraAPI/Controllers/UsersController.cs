@@ -40,24 +40,27 @@ namespace CeyloraAPI.Controllers
                 query = query.Where(u => u.Name.ToLower().Contains(s) || u.Email.ToLower().Contains(s));
             }
 
-            var users = await query.OrderBy(u => u.Name).ToListAsync();
-            var guideUserIds = (await _context.Guides.Select(g => g.UserId).ToListAsync()).ToHashSet();
-            var vehicleOwnerUserIds = (await _context.VehicleOwners.Select(v => v.UserId).ToListAsync()).ToHashSet();
-
-            var result = users.Select(u => new
-            {
-                id = u.Id,
-                name = u.Name,
-                email = u.Email,
-                role = u.Role.ToString(),
-                age = u.Age,
-                country = u.Country,
-                mobileNumber = u.MobileNumber,
-                profilePictureUrl = u.ProfilePictureUrl,
-                createdAt = u.CreatedAt,
-                hasGuideProfile = guideUserIds.Contains(u.Id),
-                hasVehicleOwnerProfile = vehicleOwnerUserIds.Contains(u.Id)
-            });
+            // Previously: 3 sequential round trips (Users, then all Guide user-ids, then
+            // all VehicleOwner user-ids), joined in memory. Each is a chance to hit a
+            // slow beat on Supabase's free-tier pooler, and they add up one after another.
+            // EXISTS subqueries let EF Core fold this into a single SQL statement.
+            var result = await query
+                .OrderBy(u => u.Name)
+                .Select(u => new
+                {
+                    id = u.Id,
+                    name = u.Name,
+                    email = u.Email,
+                    role = u.Role.ToString(),
+                    age = u.Age,
+                    country = u.Country,
+                    mobileNumber = u.MobileNumber,
+                    profilePictureUrl = u.ProfilePictureUrl,
+                    createdAt = u.CreatedAt,
+                    hasGuideProfile = _context.Guides.Any(g => g.UserId == u.Id),
+                    hasVehicleOwnerProfile = _context.VehicleOwners.Any(v => v.UserId == u.Id)
+                })
+                .ToListAsync();
 
             return Ok(result);
         }
