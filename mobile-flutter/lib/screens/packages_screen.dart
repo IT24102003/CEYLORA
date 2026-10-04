@@ -93,7 +93,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
   }
 }
 
-/// Package summary card, shared by the Packages list and the Home screen.
+/// the package summary card, shared by the Packages list and the Home screen.
 class PackageCard extends StatelessWidget {
   const PackageCard({super.key, required this.pkg, this.index = 0});
   final dynamic pkg;

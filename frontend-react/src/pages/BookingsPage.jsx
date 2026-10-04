@@ -7,7 +7,7 @@ import {
 } from "../components/ui";
 import { errorMessage, formatLKR, useAction, useRemote } from "../lib/hooks";
 
-// Must match the backend's BookingStatus enum order exactly (Booking.cs) — the numeric
+
 // `status` value returned by the API is an index into this array.
 const STATUS_OPTIONS = ["Pending", "Confirmed", "Cancelled", "Ended", "OnGoing", "Rejected"];
 const TABS = ["All", "Pending", "Confirmed", "OnGoing", "Ended", "Rejected", "Cancelled"].map((t) => ({ value: t, label: t === "OnGoing" ? "Ongoing" : t }));

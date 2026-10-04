@@ -17,7 +17,7 @@ const SLIDES = [
 
 export default function LoginPage() {
   const [slide, setSlide] = useState(0);
-  const [prev, setPrev] = useState(null); // the slide that is fading out keeps animating so it doesn't jump
+  const [prev, setPrev] = useState(null); // slide that is fading out keeps animating so it doesn't jump
   useEffect(() => {
     let current = 0;
     const t = setInterval(() => {
@@ -131,3 +131,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+            

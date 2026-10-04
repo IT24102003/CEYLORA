@@ -16,7 +16,7 @@ async def find_guide(region: str, preferred_language: str = None) -> str:
     result = await find_available_guide(region=region, language=preferred_language)
     if not result:
         return f"No available guide found in {region}."
-    # The Guides API returns the Guide entity, which has no 'name' field
+    # Guides API returns the Guide entity, which has no 'name' field
     # (the name lives on the linked User), so fall back to the guide id.
     label = result.get("name") or f"Guide #{result.get('id', '?')}"
     return (

@@ -8,10 +8,10 @@ from agents.graph import ceylora_graph
 
 app = FastAPI(title="CEYLORA Agentic AI Service")
 
-# ---------------------------------------------------------
+# ------------------------------------------------------------
 # In-memory store for workflow results (simple, for demo/dev).
 # Replace with a database or shared cache if you need this to
-# survive a restart, or if ASP.NET Core needs to poll status
+# THE survive a restart, or if ASP.NET Core needs to poll status
 # from a separate process.
 # ---------------------------------------------------------
 workflow_store: dict[str, WorkflowState] = {}
