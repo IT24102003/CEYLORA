@@ -131,28 +131,30 @@ namespace CeyloraAPI.Controllers
         [HttpGet("guide-performance")]
         public async Task<IActionResult> GetGuidePerformance([FromQuery] int limit = 6)
         {
-            var guides = await _context.Guides
+            // Previously: two separate round trips (all Guides, then all matching
+            // Assignments+Booking) joined/counted in memory. Each round trip is a
+            // chance to hit a slow beat on Supabase's free-tier pooler, and this
+            // endpoint paid that cost twice. Doing the count as a correlated
+            // subquery lets EF Core translate the whole thing into one SQL
+            // statement — one round trip, and the counting happens in Postgres
+            // instead of after pulling every row over the wire.
+            var result = await _context.Guides
                 .Include(g => g.User)
-                .ToListAsync();
-
-            var completedAssignments = await _context.Assignments
-                .Include(a => a.Booking)
-                .Where(a => a.GuideId != null && a.Status != AssignmentStatus.Cancelled &&
-                            a.Booking.Status == BookingStatus.Ended)
-                .ToListAsync();
-
-            var result = guides
                 .Select(g => new
                 {
                     guideId = g.Id,
-                    name = g.User?.Name ?? "Guide",
+                    name = g.User != null ? g.User.Name : "Guide",
                     region = g.Region,
                     rating = g.Rating,
-                    completedTrips = completedAssignments.Count(a => a.GuideId == g.Id)
+                    completedTrips = _context.Assignments.Count(a =>
+                        a.GuideId == g.Id &&
+                        a.Status != AssignmentStatus.Cancelled &&
+                        a.Booking.Status == BookingStatus.Ended)
                 })
                 .OrderByDescending(g => g.completedTrips)
                 .ThenByDescending(g => g.rating)
-                .Take(limit);
+                .Take(limit)
+                .ToListAsync();
 
             return Ok(result);
         }
