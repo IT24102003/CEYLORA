@@ -68,8 +68,18 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Register AppDbContext with PostgreSQL
+// EnableRetryOnFailure: Supabase's free-tier (Nano compute) pooler occasionally
+// stalls a query for several seconds under load ("Timeout during reading attempt",
+// a transient failure per Npgsql's own classification) even when the connection
+// pool itself isn't exhausted. Retrying a few times with a short backoff lets
+// those recover instead of surfacing as a 500 to the client.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null)));
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]!;
