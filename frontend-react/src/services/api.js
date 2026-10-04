@@ -1,6 +1,9 @@
 import axios from "axios";
 
-export const API_ROOT = "http://localhost:5220";
+// Defaults to a local `dotnet run` instance. Set VITE_API_ROOT (e.g. in a
+// `.env.production` file, or as a build-time env var) to point this build at
+// the deployed backend instead — e.g. https://ceylora-production.up.railway.app
+export const API_ROOT = import.meta.env.VITE_API_ROOT || "http://localhost:5220";
 
 const api = axios.create({
   baseURL: `${API_ROOT}/api`,

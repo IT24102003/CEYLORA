@@ -18,7 +18,18 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
+  // Flip this to true to point the app at the deployed backend
+  // (https://ceylora-production.up.railway.app) instead of a local
+  // `dotnet run` instance — useful for a demo/grading build that doesn't
+  // need the backend running on this machine. Leave it false for day-to-day
+  // development against localhost.
+  static const bool useDeployedBackend = false;
+  static const String deployedBaseUrl =
+      "https://ceylora-production.up.railway.app/api";
+
   static String get baseUrl {
+    if (useDeployedBackend) return deployedBaseUrl;
+
     if (kIsWeb) {
       return "http://localhost:5220/api";
     } else if (Platform.isAndroid) {

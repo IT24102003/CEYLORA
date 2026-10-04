@@ -7,6 +7,12 @@ CEYLORA is a Sri Lankan tourism platform that connects tourists with guides, veh
 [![Mobile (Flutter) Tests](https://github.com/IT24102003/CEYLORA/actions/workflows/mobile-tests.yml/badge.svg)](https://github.com/IT24102003/CEYLORA/actions/workflows/mobile-tests.yml)
 [![Agentic AI Tests](https://github.com/IT24102003/CEYLORA/actions/workflows/agentic-ai-tests.yml/badge.svg)](https://github.com/IT24102003/CEYLORA/actions/workflows/agentic-ai-tests.yml)
 
+## Live deployment
+
+The backend API is deployed and running: **[ceylora-production.up.railway.app](https://ceylora-production.up.railway.app)** (Railway, free tier, Docker — see [`backend/Dockerfile`](backend/Dockerfile)). Interactive API docs: **[/swagger](https://ceylora-production.up.railway.app/swagger)**.
+
+The mobile app and admin panel default to a local backend for development; set `useDeployedBackend = true` in `mobile-flutter/lib/services/api_service.dart` or `VITE_API_ROOT` for `frontend-react` to point a build at the live instance above instead.
+
 ## What it does
 
 - **Tourists** browse destinations, hotels and packages, book a trip (from a package or a custom AI-planned itinerary), pay, chat with their assigned guide, and leave a review.
