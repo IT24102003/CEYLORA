@@ -1,0 +1,39 @@
+name: Backend Tests
+
+# Runs the CeyloraAPI.Tests xUnit suite (EF Core InMemory — no live Postgres needed)
+# whenever backend code changes, on pushes to main and on every pull request.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore CeyloraAPI.Tests/CeyloraAPI.Tests.csproj
+
+      - name: Build
+        run: dotnet build CeyloraAPI.Tests/CeyloraAPI.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test CeyloraAPI.Tests/CeyloraAPI.Tests.csproj --no-build --configuration Release --verbosity normal
