@@ -1,0 +1,40 @@
+## ===== .NET (backend) =====
+backend/**/bin/
+backend/**/obj/
+*.user
+*.suo
+
+## ===== Node / React (frontend-react) =====
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/coverage/
+
+## ===== Python (agentic-ai) =====
+agentic-ai/**/__pycache__/
+agentic-ai/**/*.pyc
+agentic-ai/.pytest_cache/
+agentic-ai/venv/
+agentic-ai/.venv/
+
+## ===== Flutter (mobile-flutter) =====
+mobile-flutter/.dart_tool/
+mobile-flutter/build/
+mobile-flutter/.flutter-plugins
+mobile-flutter/.flutter-plugins-dependencies
+mobile-flutter/android/.gradle/
+mobile-flutter/android/app/build/
+mobile-flutter/ios/Pods/
+mobile-flutter/ios/.symlinks/
+mobile-flutter/windows/flutter/ephemeral/
+mobile-flutter/linux/flutter/ephemeral/
+mobile-flutter/macos/Flutter/ephemeral/
+
+## ===== IDE / OS =====
+.vs/
+.idea/
+.vscode/
+*.DS_Store
+Thumbs.db
+
+## ===== Secrets (never commit real secrets) =====
+backend/CeyloraAPI/appsettings.Development.json
