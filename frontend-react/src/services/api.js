@@ -7,6 +7,11 @@ export const API_ROOT = import.meta.env.VITE_API_ROOT || "http://localhost:5220"
 
 const api = axios.create({
   baseURL: `${API_ROOT}/api`,
+  // Without this, a slow/stuck backend (e.g. a DB connection-pool wait) leaves
+  // the page spinning forever with no error and nothing in the console — the
+  // request never fails, it just never resolves. 15s gives a clear timeout
+  // error the UI can show instead.
+  timeout: 15000,
 });
 
 /** Uploaded files come back as relative paths ("/uploads/..."); make them absolute. */

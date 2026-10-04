@@ -9,9 +9,12 @@ CEYLORA is a Sri Lankan tourism platform that connects tourists with guides, veh
 
 ## Live deployment
 
-The backend API is deployed and running: **[ceylora-production.up.railway.app](https://ceylora-production.up.railway.app)** (Railway, free tier, Docker — see [`backend/Dockerfile`](backend/Dockerfile)). Interactive API docs: **[/swagger](https://ceylora-production.up.railway.app/swagger)**.
+- **Backend API**: [ceylora-production.up.railway.app](https://ceylora-production.up.railway.app) (Railway, free tier, Docker — see [`backend/Dockerfile`](backend/Dockerfile)). Interactive API docs: [/swagger](https://ceylora-production.up.railway.app/swagger).
+- **Admin panel**: [mellifluous-fox-a71ffb.netlify.app](https://mellifluous-fox-a71ffb.netlify.app) (Netlify, built from `frontend-react`, pointed at the live backend above via `VITE_API_ROOT`).
 
-The mobile app and admin panel default to a local backend for development; set `useDeployedBackend = true` in `mobile-flutter/lib/services/api_service.dart` or `VITE_API_ROOT` for `frontend-react` to point a build at the live instance above instead.
+The backend connects to PostgreSQL through Supabase's connection pooler (`aws-0-ap-south-1.pooler.supabase.com:6543`, transaction mode) rather than the direct host, since Railway has no outbound IPv6 route to Supabase's direct-connection address.
+
+The mobile app defaults to a local backend for development; set `useDeployedBackend = true` in `mobile-flutter/lib/services/api_service.dart` to point a build at the live instance above instead.
 
 ## What it does
 
