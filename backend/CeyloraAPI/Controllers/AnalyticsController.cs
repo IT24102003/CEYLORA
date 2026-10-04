@@ -23,33 +23,70 @@ namespace CeyloraAPI.Controllers
         [HttpGet("overview")]
         public async Task<IActionResult> GetOverview()
         {
-            var totalUsers = await _context.Users.CountAsync();
-            var totalTourists = await _context.Users.CountAsync(u => u.Role == UserRole.Tourist);
-            var totalGuideUsers = await _context.Users.CountAsync(u => u.Role == UserRole.Guide);
+            // Previously: 14 sequential round trips (9 separate CountAsync calls, one
+            // ToListAsync pulling every booking, then more counting in memory) — by far
+            // the heaviest endpoint on this page, and the one most likely to land on a
+            // slow beat from Supabase's free-tier pooler. Folding every count into one
+            // GroupBy(_ => 1) projection lets EF Core translate the whole thing into a
+            // single SQL statement (each count becomes a scalar subquery Postgres runs
+            // server-side), so this is now one round trip instead of fourteen.
+            var stats = await _context.Users
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    totalUsers = g.Count(),
+                    totalTourists = g.Count(u => u.Role == UserRole.Tourist),
+                    totalGuideUsers = g.Count(u => u.Role == UserRole.Guide),
+                    totalBookings = _context.Bookings.Count(),
+                    pendingBookings = _context.Bookings.Count(b => b.Status == BookingStatus.Pending),
+                    confirmedBookings = _context.Bookings.Count(b => b.Status == BookingStatus.Confirmed),
+                    onGoingBookings = _context.Bookings.Count(b => b.Status == BookingStatus.OnGoing),
+                    completedBookings = _context.Bookings.Count(b => b.Status == BookingStatus.Ended),
+                    cancelledBookings = _context.Bookings.Count(b => b.Status == BookingStatus.Cancelled),
+                    rejectedBookings = _context.Bookings.Count(b => b.Status == BookingStatus.Rejected),
+                    completedOrConfirmedCount = _context.Bookings.Count(b =>
+                        b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.OnGoing || b.Status == BookingStatus.Ended),
+                    totalRevenue = _context.Bookings
+                        .Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.OnGoing || b.Status == BookingStatus.Ended)
+                        .Sum(b => (decimal?)b.TotalPrice) ?? 0,
+                    totalDestinations = _context.Destinations.Count(),
+                    totalHotels = _context.Hotels.Count(),
+                    totalVehicles = _context.Vehicles.Count(),
+                    totalPackages = _context.Packages.Count(),
+                    totalGuides = _context.Guides.Count(),
+                })
+                .FirstOrDefaultAsync();
 
-            var bookings = await _context.Bookings.ToListAsync();
-            var completedOrConfirmed = bookings.Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.OnGoing || b.Status == BookingStatus.Ended).ToList();
-            var totalRevenue = completedOrConfirmed.Sum(b => b.TotalPrice);
+            // No users at all (fresh DB) means the GroupBy produces no rows — fall back
+            // to zeros instead of a null-reference on the empty dashboard.
+            if (stats == null)
+                return Ok(new
+                {
+                    totalUsers = 0, totalTourists = 0, totalGuideUsers = 0, totalBookings = 0,
+                    pendingBookings = 0, confirmedBookings = 0, onGoingBookings = 0, completedBookings = 0,
+                    cancelledBookings = 0, rejectedBookings = 0, totalRevenue = 0m, avgBookingValue = 0m,
+                    totalDestinations = 0, totalHotels = 0, totalVehicles = 0, totalPackages = 0, totalGuides = 0,
+                });
 
             return Ok(new
             {
-                totalUsers,
-                totalTourists,
-                totalGuideUsers,
-                totalBookings = bookings.Count,
-                pendingBookings = bookings.Count(b => b.Status == BookingStatus.Pending),
-                confirmedBookings = bookings.Count(b => b.Status == BookingStatus.Confirmed),
-                onGoingBookings = bookings.Count(b => b.Status == BookingStatus.OnGoing),
-                completedBookings = bookings.Count(b => b.Status == BookingStatus.Ended),
-                cancelledBookings = bookings.Count(b => b.Status == BookingStatus.Cancelled),
-                rejectedBookings = bookings.Count(b => b.Status == BookingStatus.Rejected),
-                totalRevenue,
-                avgBookingValue = completedOrConfirmed.Count > 0 ? totalRevenue / completedOrConfirmed.Count : 0,
-                totalDestinations = await _context.Destinations.CountAsync(),
-                totalHotels = await _context.Hotels.CountAsync(),
-                totalVehicles = await _context.Vehicles.CountAsync(),
-                totalPackages = await _context.Packages.CountAsync(),
-                totalGuides = await _context.Guides.CountAsync(),
+                stats.totalUsers,
+                stats.totalTourists,
+                stats.totalGuideUsers,
+                stats.totalBookings,
+                stats.pendingBookings,
+                stats.confirmedBookings,
+                stats.onGoingBookings,
+                stats.completedBookings,
+                stats.cancelledBookings,
+                stats.rejectedBookings,
+                stats.totalRevenue,
+                avgBookingValue = stats.completedOrConfirmedCount > 0 ? stats.totalRevenue / stats.completedOrConfirmedCount : 0,
+                stats.totalDestinations,
+                stats.totalHotels,
+                stats.totalVehicles,
+                stats.totalPackages,
+                stats.totalGuides,
             });
         }
 
