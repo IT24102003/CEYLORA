@@ -31,7 +31,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    try {
+      if (sessionStorage.getItem("ceylora_session_expired")) {
+        sessionStorage.removeItem("ceylora_session_expired");
+        return "Your session expired. Please sign in again.";
+      }
+    } catch { /* ignore */ }
+    return "";
+  });
   const [loading, setLoading] = useState(false);
 
   const { user, login } = useAuth();
