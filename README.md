@@ -1,6 +1,6 @@
 # CEYLORA
 
-CEYLORA is a Sri Lankan tourism platform that connects tourists with guides, vehicle owners, hotels and curated travel packages, with an AI agent service that plans custom trips on request. Built for SE3090 (Assignment 1).
+CEYLORA is a Sri Lankan Tourism platform that connects tourists with guides, vehicle owners, hotels and curated travel packages, with an AI agent service that plans custom trips on request. Built for SE3090 (Assignment 1).
 
 [![Backend Tests](https://github.com/IT24102003/CEYLORA/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/IT24102003/CEYLORA/actions/workflows/backend-tests.yml)
 [![Frontend (Admin Panel) Tests](https://github.com/IT24102003/CEYLORA/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/IT24102003/CEYLORA/actions/workflows/frontend-tests.yml)
