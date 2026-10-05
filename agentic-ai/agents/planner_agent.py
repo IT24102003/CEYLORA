@@ -1,10 +1,33 @@
 #Planner Agent AI 
 
 import os
-from langchain_ollama import ChatOllama
 from state.workflow_state import WorkflowState, log_step
 
-llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1"), base_url=os.getenv("OLLAMA_BASE_URL"))
+
+def _build_llm():
+    """
+    Picks the LLM provider from environment variables, so the same code runs
+    both on a laptop (Ollama) and on a cloud host (Groq's hosted API):
+
+      - GROQ_API_KEY set  -> Groq (hosted, free tier; used on Railway)
+      - otherwise         -> local Ollama (OLLAMA_MODEL / OLLAMA_BASE_URL)
+
+    Imports are done lazily so a deployment only needs the package for the
+    provider it actually uses.
+    """
+    if os.getenv("GROQ_API_KEY"):
+        from langchain_groq import ChatGroq
+        return ChatGroq(
+            model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            temperature=0.2,
+            timeout=30,
+            max_retries=1,
+        )
+    from langchain_ollama import ChatOllama
+    return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1"), base_url=os.getenv("OLLAMA_BASE_URL"))
+
+
+llm = _build_llm()
 
 
 async def planner_node(state: WorkflowState) -> WorkflowState:

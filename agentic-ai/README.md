@@ -71,3 +71,14 @@ agentic-ai/
 │   └── workflow_state.py    # shared WorkflowState dataclass + logging
 └── tests/                   # pytest suite (see above)
 ```
+
+## Deploying on Railway (hosted LLM via Groq)
+
+1. New service from this repo, **Root Directory = `agentic-ai`** (Nixpacks detects Python; the `Procfile` sets the start command).
+2. Variables:
+   - `GROQ_API_KEY=<your Groq key>` — when set, `planner_agent.py` uses Groq instead of Ollama.
+   - `GROQ_MODEL` (optional, default `llama-3.1-8b-instant`)
+   - `BACKEND_API_URL=https://<backend-domain>.up.railway.app/api` — the agent calls the CEYLORA backend for destinations, guides, vehicles and pricing.
+3. Generate a public domain for the service, then on the **backend** service set `AgenticAI__BaseUrl=https://<agent-domain>.up.railway.app`.
+
+Without `GROQ_API_KEY` the service falls back to local Ollama (`OLLAMA_MODEL`, `OLLAMA_BASE_URL`).
