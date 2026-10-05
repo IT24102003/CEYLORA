@@ -49,6 +49,10 @@ def test_vehicle_type_for_group(group_size, expected_type):
         ("A two day trip to Galle", 2),
         ("Plan my trip to Ella", 2),  # no duration mentioned -> default 2
         ("A 45 day trip", 30),  # capped at 30 against a malformed/very long prompt
+        # Per-day route: length = highest day listed, not the leading "1 day".
+        ("1 day - kandy , 2 day - monaragala, 3 day - galle... 40 peoples.", 3),
+        ("5 day trip. 1 day - colombo, 2 day - kandy, 3 day - ampara", 5),
+        ("day 1 - colombo, day 2 - kandy, day 4 - ella", 4),
     ],
 )
 def test_extract_trip_days(objective, expected_days):

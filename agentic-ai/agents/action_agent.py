@@ -101,9 +101,25 @@ def _extract_trip_days(objective: str) -> int:
     """
     text = objective.lower()
 
+    # 🔥 Per-day plans like "1 day - kandy, 2 day - monaragala, 3 day - galle"
+    # are a day-by-day ROUTE, not "a 1 day trip": the old first-match regex
+    # below read only the leading "1 day" and produced a 1-day itinerary.
+    # When days are listed with a region/place after them ("N day - place" or
+    # "day N - place"), the trip length is the highest day number mentioned.
+    per_day_numbers = [
+        int(a or b)
+        for a, b in re.findall(
+            r"(?:\bday\s*(\d+)|(\d+)\s*-?\s*day)\s*[-:]\s*[a-z]", text
+        )
+    ]
+
     digits_near_day = re.search(r"(\d+)\s*-?\s*day", text)
-    if digits_near_day:
-        return max(1, min(30, int(digits_near_day.group(1))))
+    if digits_near_day or per_day_numbers:
+        # Take the larger of the leading "N day" and the highest listed day,
+        # so "5 day trip. 1 day - colombo, 2 day - kandy" stays 5 days while
+        # "1 day - kandy, 2 day - galle, 3 day - ella" becomes 3.
+        leading = int(digits_near_day.group(1)) if digits_near_day else 0
+        return max(1, min(30, max([leading] + per_day_numbers)))
 
     words_near_day = re.search(
         r"\b(" + "|".join(_NUMBER_WORDS) + r")\b\s*-?\s*day", text
