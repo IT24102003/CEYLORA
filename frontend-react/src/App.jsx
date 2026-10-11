@@ -19,7 +19,7 @@ const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
 const VerificationsPage = lazy(() => import("./pages/VerificationsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
-const PaymentsPage = lazy(() => import("./pages/PaymentsPage"));
+const Payment = lazy(() => import("./pages/Payment"));
 
 const PageLoader = () => (
   <div style={{ display: "grid", placeItems: "center", minHeight: "50vh" }}>
@@ -57,7 +57,7 @@ function App() {
                   ["/verifications", VerificationsPage],
                   ["/reports", ReportsPage],
                   ["/users", UsersPage],
-                  ["/payments", PaymentsPage],
+                  ["/payments", Payment],
                 ].map(([path, Page]) => (
                   <Route
                     key={path}
