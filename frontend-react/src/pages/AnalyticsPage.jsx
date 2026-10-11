@@ -1,4 +1,5 @@
-//analytics page
+//analytics_page
+//Dashboard_
 
 import { useState } from "react";
 import {
